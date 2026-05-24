@@ -1188,6 +1188,7 @@
       Number(activity.copilot_open_pr_count || 0) > 0 ||
       Number(activity.copilot_draft_pr_count || 0) > 0 ||
       Number(activity.copilot_labeled_issue_count || 0) > 0 ||
+      Number(activity.bot_pr_count || 0) > 0 ||
       signalCount > 0
     );
   }
@@ -1205,15 +1206,21 @@
 
   function getCopilotLabel(activity) {
     const branches = Number(activity.copilot_branch_count || 0);
-    const prs = Number(activity.copilot_open_pr_count || 0) + Number(activity.copilot_draft_pr_count || 0);
+    const copilotPrs = Number(activity.copilot_open_pr_count || 0);
+    const botPrs = Number(activity.bot_pr_count || 0);
     const issues = Number(activity.copilot_labeled_issue_count || 0);
-    const total = branches + prs + issues;
+    const totalPrs = copilotPrs + botPrs;
+    const total = branches + totalPrs + issues;
 
     if (!total) {
-      return 'No Copilot signals';
+      return 'No activity';
     }
 
-    return `${branches} branches · ${prs} PRs · ${issues} linked issues`;
+    const parts = [];
+    if (totalPrs > 0) parts.push(`${totalPrs} PR${totalPrs === 1 ? '' : 's'}`);
+    if (branches > 0) parts.push(`${branches} branch${branches === 1 ? '' : 'es'}`);
+    if (issues > 0 && parts.length === 0) parts.push(`${issues} issue${issues === 1 ? '' : 's'}`);
+    return `Active (${parts.join(', ')})`;
   }
 
   function getIssueLabel(repo) {

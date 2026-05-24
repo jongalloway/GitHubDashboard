@@ -224,6 +224,10 @@ function getPullSource(pull, labels = []) {
   return 'human';
 }
 
+function isBotAuthor(login) {
+  return login.toLowerCase().endsWith('[bot]');
+}
+
 function issuePriority(issue) {
   const labels = normalizeLabels(issue.labels).map((label) => label.toLowerCase());
   const ageDays = daysBetween(issue.created_at) ?? 0;
@@ -588,6 +592,9 @@ async function buildRepoRecord(repo) {
     const nonDefaultBranchCount = branches.filter((b) => b.name !== repo.default_branch).length;
 
     const copilotPulls = pulls.filter((pull) => pullSources.get(pull.number) === 'copilot');
+    const botPulls = pulls.filter(
+      (pull) => isBotAuthor(pull.user?.login || '') && pullSources.get(pull.number) !== 'copilot'
+    );
     const copilotIssues = issueRecords.filter((issue) =>
       normalizeLabels(issue.labels).some((label) => label.toLowerCase().includes('copilot'))
     );
@@ -613,6 +620,9 @@ async function buildRepoRecord(repo) {
     }
     if (copilotIssues.length > 0) {
       copilotSignals.push('copilot-label');
+    }
+    if (botPulls.length > 0) {
+      copilotSignals.push('bot-pr');
     }
 
     const hasRelease = releaseInfo.has_release;
@@ -700,10 +710,12 @@ async function buildRepoRecord(repo) {
         copilot_open_pr_count: copilotPulls.length,
         copilot_draft_pr_count: copilotPulls.filter((pull) => pull.draft).length,
         copilot_labeled_issue_count: copilotIssues.length,
+        bot_pr_count: botPulls.length,
         last_activity_at: maxTimestamp(
           copilotBranchActivity,
           copilotPulls.map((pull) => pull.updated_at),
-          copilotIssues.map((issue) => issue.updated_at)
+          copilotIssues.map((issue) => issue.updated_at),
+          botPulls.map((pull) => pull.updated_at)
         ),
         signals: copilotSignals
       },
@@ -773,6 +785,7 @@ async function buildRepoRecord(repo) {
         copilot_open_pr_count: 0,
         copilot_draft_pr_count: 0,
         copilot_labeled_issue_count: 0,
+        bot_pr_count: 0,
         last_activity_at: null,
         signals: []
       },
