@@ -843,6 +843,11 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const activityBadge = buildActivityBadge(repo);
+    if (activityBadge) {
+      badges.push(activityBadge);
+    }
+
     const securityBadge = buildSecurityBadge(repo);
     if (securityBadge) {
       badges.push(securityBadge);
@@ -904,6 +909,31 @@
     const badge = document.createElement('span');
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
+    return badge;
+  }
+
+  function buildActivityBadge(repo) {
+    if (!repo.last_commit_date) return null;
+
+    const date = new Date(repo.last_commit_date);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+    const text = formatRelativeDate(repo.last_commit_date) || 'today';
+
+    let tone;
+    if (days <= 30) {
+      tone = 'success';
+    } else if (days <= 90) {
+      tone = 'neutral';
+    } else if (days <= 365) {
+      tone = 'warning';
+    } else {
+      tone = 'danger';
+    }
+
+    const badge = buildBadge('🕐', text, tone);
+    badge.title = formatAbsoluteDate(repo.last_commit_date);
     return badge;
   }
 
