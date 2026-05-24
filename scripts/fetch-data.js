@@ -253,8 +253,12 @@ function issuePriority(issue) {
   return { score: 0, reason: null, ageDays, isUnassigned, isUnlabeled };
 }
 
-function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease }) {
+function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease, ciFailure }) {
   const parts = [];
+
+  if (ciFailure) {
+    parts.push('CI is failing');
+  }
 
   if (releaseOverdue) {
     parts.push(hasRelease ? 'Release is overdue' : 'Recent commits have not shipped in a release');
@@ -356,6 +360,29 @@ async function getBranches(fullName) {
   });
 }
 
+async function getLatestWorkflowRun(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/actions/runs?per_page=1`, {
+    context: `Fetching latest workflow run for ${fullName}`,
+    allowStatuses: [403, 404, 451]
+  });
+
+  if (!data || !Array.isArray(data.workflow_runs) || data.workflow_runs.length === 0) {
+    return { has_workflows: false, latest_run: null };
+  }
+
+  const run = data.workflow_runs[0];
+  return {
+    has_workflows: true,
+    latest_run: {
+      name: run.name || null,
+      status: run.status || null,
+      conclusion: run.conclusion || null,
+      updated_at: run.updated_at || null,
+      html_url: run.html_url || null
+    }
+  };
+}
+
 async function getReviewState(fullName, pullNumber) {
   const reviews = await paginate(`/repos/${fullName}/pulls/${pullNumber}/reviews?per_page=100`, {
     context: `Fetching reviews for ${fullName}#${pullNumber}`,
@@ -414,7 +441,7 @@ async function buildRepoRecord(repo) {
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, workflowStatus] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -423,7 +450,8 @@ async function buildRepoRecord(repo) {
       fetchJson(`/repos/${fullName}/contents/.squad/team.md`, {
         context: `Checking Squad presence for ${fullName}`,
         allowStatuses: [404]
-      })
+      }),
+      getLatestWorkflowRun(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -555,6 +583,11 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    const ciFailure = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(workflowStatus?.latest_run?.conclusion);
+    if (ciFailure) {
+      signals.push('ci-failing');
+    }
+
     const recentActivityAt = maxTimestamp(
       repo.pushed_at,
       lastCommitDate,
@@ -583,6 +616,7 @@ async function buildRepoRecord(repo) {
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
       releases: releaseInfo,
+      workflow_status: workflowStatus,
       copilot_activity: {
         copilot_branch_count: copilotBranches.length,
         copilot_branches: copilotBranches,
@@ -618,7 +652,8 @@ async function buildRepoRecord(repo) {
           copilotWorkReady,
           squadWorkReady,
           hasRecentActivity,
-          hasRelease
+          hasRelease,
+          ciFailure
         })
       }
     };
@@ -649,6 +684,7 @@ async function buildRepoRecord(repo) {
         has_release: false,
         release_overdue: false
       },
+      workflow_status: { has_workflows: false, latest_run: null },
       copilot_activity: {
         copilot_branch_count: 0,
         copilot_branches: [],
