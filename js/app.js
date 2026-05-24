@@ -843,6 +843,11 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const codeScanBadge = buildCodeScanBadge(repo);
+    if (codeScanBadge) {
+      badges.push(codeScanBadge);
+    }
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -888,6 +893,34 @@
     }
 
     return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success');
+  }
+
+  function buildCodeScanBadge(repo) {
+    const cs = repo.code_scanning;
+    if (!cs || cs.total === 0) return null;
+
+    const critical = cs.critical || 0;
+    const high = cs.high || 0;
+    const error = cs.error || 0;
+    const total = cs.total || 0;
+
+    let text;
+    let tone;
+    if (critical > 0) {
+      text = `${critical} critical`;
+      tone = 'danger';
+    } else if (error > 0) {
+      text = `${error} error`;
+      tone = 'danger';
+    } else if (high > 0) {
+      text = `${high} high`;
+      tone = 'warning';
+    } else {
+      text = `${total} alerts`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔍', text, tone);
   }
 
   function buildBadge(icon, text, tone) {
