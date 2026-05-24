@@ -459,7 +459,6 @@
     const headerRight = document.createElement('div');
     headerRight.className = 'repo-header-right';
     headerRight.appendChild(buildCardActions(repo, isPinned));
-    headerRight.appendChild(buildNextStepPanel(repo, status));
 
     const header = document.createElement('div');
     header.className = 'repo-header';
@@ -475,7 +474,7 @@
     grid.appendChild(buildInfoTile('Priority issues', `${priorityIssues.length} highlighted`, renderIssueList(priorityIssues, 'No priority issues surfaced.')));
     grid.appendChild(buildInfoTile('Pending review PRs', `${getPendingReviewCount(repo)} awaiting review`, renderReviewList(reviewItems, 'No PRs waiting for review.')));
 
-    card.append(header, badges, grid, buildNotesPanel(repo));
+    card.append(header, buildNextStepPanel(repo, status), badges, grid, buildNotesPanel(repo));
     return card;
   }
 
