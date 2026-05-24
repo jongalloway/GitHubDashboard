@@ -583,12 +583,12 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
-    const ciFailure = workflowStatus?.latest_run?.conclusion === 'failure';
+    const ciFailure = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(workflowStatus?.latest_run?.conclusion);
     if (ciFailure) {
       signals.push('ci-failing');
     }
 
-    const recentActivityAt= maxTimestamp(
+    const recentActivityAt = maxTimestamp(
       repo.pushed_at,
       lastCommitDate,
       issueRecords.map((issue) => issue.updated_at),
@@ -617,7 +617,7 @@ async function buildRepoRecord(repo) {
       topics: Array.isArray(repo.topics) ? repo.topics : [],
       releases: releaseInfo,
       workflow_status: workflowStatus,
-      copilot_activity:{
+      copilot_activity: {
         copilot_branch_count: copilotBranches.length,
         copilot_branches: copilotBranches,
         copilot_open_pr_count: copilotPulls.length,
@@ -685,7 +685,7 @@ async function buildRepoRecord(repo) {
         release_overdue: false
       },
       workflow_status: { has_workflows: false, latest_run: null },
-      copilot_activity:{
+      copilot_activity: {
         copilot_branch_count: 0,
         copilot_branches: [],
         copilot_open_pr_count: 0,
