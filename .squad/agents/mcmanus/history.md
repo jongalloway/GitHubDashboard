@@ -20,7 +20,9 @@
 - 2026-05-23T03:38:13-07:00: `app.js` always fetches `data/dashboard.json` first on every load; private data path runs after public render completes. All existing rendering functions are preserved unchanged.
 - 2026-05-23T18:42:30-07:00: Light/dark theme implemented via `html[data-theme]` selector. `js/theme.js` runs immediately (no defer) to prevent FOUC. Theme preference stored in `localStorage('ghd_theme')`, falls back to `prefers-color-scheme`. Toggle exposed via `GHD.Theme.toggle()`.
 - 2026-05-23T18:42:30-07:00: PWA support: manifest.json with SVG icon, sw.js with cache-first statics / network-first data, apple-mobile-web-app meta tags. Service worker registered from theme.js on load.
-- 2026-05-23T18:42:30-07:00: Squad badge renders conditionally when `repo.squad_activity.squad_enabled` is truthy. Shows branch count if > 0. New `--squad` / `--squad-soft` CSS vars in both themes. `squadRepos` added to summary config and accumulator.
+- 2026-05-24T15:30:34-07:00: Dependabot security alerts feature (Issue #9) implemented. `getDependabotAlerts()` uses `paginate()` with `allowStatuses: [403, 404, 451, 422]` so 403 (no `security_events` scope) gracefully returns empty array and badge is hidden. Critical/high alerts add `security-alerts` signal → needs-attention status.
+- 2026-05-24T15:30:34-07:00: Security badge uses 🔒 icon: `danger` tone for critical, `warning` for high-only, `neutral` for medium/low. Badge hidden when total === 0. `summarizeNextSteps` now surfaces critical/high counts at the top of the summary string (security issues reported before release/review signals).
+- 2026-05-24T15:30:34-07:00: On main branch (squad/9-dependabot-alerts), the Promise.all in `buildRepoRecord` did not yet include `workflowStatus` (that's #8's PR, not merged yet). Added `securityAlerts` as the 7th item — no conflicts with #8's changes.
 
 ## Team Coordination (2026-05-23T09:22:49Z)
 

@@ -843,6 +843,11 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const securityBadge = buildSecurityBadge(repo);
+    if (securityBadge) {
+      badges.push(securityBadge);
+    }
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -895,6 +900,28 @@
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
     return badge;
+  }
+
+  function buildSecurityBadge(repo) {
+    const alerts = repo.security_alerts;
+    if (!alerts || alerts.total === 0) return null;
+
+    const critical = alerts.critical || 0;
+    const high = alerts.high || 0;
+
+    let label, tone;
+    if (critical > 0) {
+      label = `${critical} critical`;
+      tone = 'danger';
+    } else if (high > 0) {
+      label = `${high} high`;
+      tone = 'warning';
+    } else {
+      label = `${alerts.total} alert${alerts.total === 1 ? '' : 's'}`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔒', label, tone);
   }
 
   function buildInfoTile(title, subtitle, contentNode) {
