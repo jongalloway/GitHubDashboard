@@ -848,6 +848,16 @@
       badges.push(activityBadge);
     }
 
+    const securityBadge = buildSecurityBadge(repo);
+    if (securityBadge) {
+      badges.push(securityBadge);
+    }
+
+    const workflowBadge = buildWorkflowBadge(repo);
+    if (workflowBadge) {
+      badges.push(workflowBadge);
+    }
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -909,19 +919,7 @@
     if (Number.isNaN(date.getTime())) return null;
 
     const days = Math.floor((Date.now() - date.getTime()) / 86400000);
-
-    let text;
-    if (days < 1) {
-      text = 'today';
-    } else if (days < 7) {
-      text = `${days}d ago`;
-    } else if (days < 30) {
-      text = `${Math.floor(days / 7)}w ago`;
-    } else if (days < 365) {
-      text = `${Math.floor(days / 30)}mo ago`;
-    } else {
-      text = `${Math.floor(days / 365)}y ago`;
-    }
+    const text = formatRelativeDate(repo.last_commit_date) || 'today';
 
     let tone;
     if (days <= 30) {
@@ -936,6 +934,63 @@
 
     const badge = buildBadge('🕐', text, tone);
     badge.title = formatAbsoluteDate(repo.last_commit_date);
+    return badge;
+  }
+
+  function buildSecurityBadge(repo) {
+    const alerts = repo.security_alerts;
+    if (!alerts || alerts.total === 0) return null;
+
+    const critical = alerts.critical || 0;
+    const high = alerts.high || 0;
+
+    let label, tone;
+    if (critical > 0) {
+      label = `${critical} critical`;
+      tone = 'danger';
+    } else if (high > 0) {
+      label = `${high} high`;
+      tone = 'warning';
+    } else {
+      label = `${alerts.total} alert${alerts.total === 1 ? '' : 's'}`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔒', label, tone);
+  }
+
+  function buildWorkflowBadge(repo) {
+    if (!repo.workflow_status?.has_workflows) return null;
+
+    const run = repo.workflow_status.latest_run;
+    const status = run?.status || null;
+    const conclusion = run?.conclusion || null;
+
+    let icon, text, tone;
+    if (conclusion === 'success') {
+      icon = '✅'; text = 'CI passing'; tone = 'success';
+    } else if (['failure', 'timed_out', 'startup_failure', 'action_required'].includes(conclusion)) {
+      icon = '❌'; text = 'CI failing'; tone = 'danger';
+    } else if (conclusion === 'cancelled') {
+      icon = '⚫'; text = 'CI cancelled'; tone = 'neutral';
+    } else if (status === 'in_progress' || status === 'queued' || conclusion === 'in_progress') {
+      icon = '⏳'; text = 'CI running'; tone = 'neutral';
+    } else {
+      icon = '⚪'; text = 'CI unknown'; tone = 'neutral';
+    }
+
+    const badge = buildBadge(icon, text, tone);
+
+    if (run?.html_url) {
+      const link = document.createElement('a');
+      link.href = run.html_url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.className = 'badge-link';
+      link.appendChild(badge);
+      return link;
+    }
+
     return badge;
   }
 

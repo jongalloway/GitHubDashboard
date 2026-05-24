@@ -253,8 +253,19 @@ function issuePriority(issue) {
   return { score: 0, reason: null, ageDays, isUnassigned, isUnlabeled };
 }
 
-function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease }) {
+function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease, securityAlerts, ciFailure }) {
   const parts = [];
+
+  if (ciFailure) {
+    parts.push('CI is failing');
+  }
+
+  const criticalCount = securityAlerts?.critical || 0;
+  const highCount = securityAlerts?.high || 0;
+  if (criticalCount > 0) {
+    parts.push(`${criticalCount} critical security alert${criticalCount === 1 ? '' : 's'}`);
+  } else if (highCount > 0) {
+    parts.push(`${highCount} high security alert${highCount === 1 ? '' : 's'}`);
 
   if (releaseOverdue) {
     parts.push(hasRelease ? 'Release is overdue' : 'Recent commits have not shipped in a release');
@@ -356,6 +367,52 @@ async function getBranches(fullName) {
   });
 }
 
+async function getDependabotAlerts(fullName) {
+  const alerts = await paginate(`/repos/${fullName}/dependabot/alerts?state=open&per_page=100`, {
+    context: `Fetching Dependabot alerts for ${fullName}`,
+    allowStatuses: [403, 404, 451, 422]
+  });
+
+  if (!alerts || alerts.length === 0) {
+    return { total: 0, critical: 0, high: 0, medium: 0, low: 0 };
+  }
+
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const alert of alerts) {
+    const sev = (
+      alert.security_advisory?.severity ||
+      alert.security_vulnerability?.severity ||
+      'low'
+    ).toLowerCase();
+    if (sev in counts) counts[sev]++;
+  }
+
+  return { total: alerts.length, ...counts };
+}
+
+async function getLatestWorkflowRun(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/actions/runs?per_page=1`, {
+    context: `Fetching latest workflow run for ${fullName}`,
+    allowStatuses: [403, 404, 451]
+  });
+
+  if (!data || !Array.isArray(data.workflow_runs) || data.workflow_runs.length === 0) {
+    return { has_workflows: false, latest_run: null };
+  }
+
+  const run = data.workflow_runs[0];
+  return {
+    has_workflows: true,
+    latest_run: {
+      name: run.name || null,
+      status: run.status || null,
+      conclusion: run.conclusion || null,
+      updated_at: run.updated_at || null,
+      html_url: run.html_url || null
+    }
+  };
+}
+
 async function getReviewState(fullName, pullNumber) {
   const reviews = await paginate(`/repos/${fullName}/pulls/${pullNumber}/reviews?per_page=100`, {
     context: `Fetching reviews for ${fullName}#${pullNumber}`,
@@ -414,7 +471,7 @@ async function buildRepoRecord(repo) {
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -423,7 +480,9 @@ async function buildRepoRecord(repo) {
       fetchJson(`/repos/${fullName}/contents/.squad/team.md`, {
         context: `Checking Squad presence for ${fullName}`,
         allowStatuses: [404]
-      })
+      }),
+      getDependabotAlerts(fullName),
+      getLatestWorkflowRun(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -555,6 +614,16 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    const hasSecurityAlerts = (securityAlerts?.critical || 0) + (securityAlerts?.high || 0) > 0;
+    if (hasSecurityAlerts) {
+      signals.push('security-alerts');
+    }
+
+    const ciFailure = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(workflowStatus?.latest_run?.conclusion);
+    if (ciFailure) {
+      signals.push('ci-failing');
+    }
+
     const recentActivityAt = maxTimestamp(
       repo.pushed_at,
       lastCommitDate,
@@ -583,6 +652,8 @@ async function buildRepoRecord(repo) {
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
       releases: releaseInfo,
+      security_alerts: securityAlerts,
+      workflow_status: workflowStatus,
       copilot_activity: {
         copilot_branch_count: copilotBranches.length,
         copilot_branches: copilotBranches,
@@ -618,7 +689,9 @@ async function buildRepoRecord(repo) {
           copilotWorkReady,
           squadWorkReady,
           hasRecentActivity,
-          hasRelease
+          hasRelease,
+          securityAlerts,
+          ciFailure
         })
       }
     };
@@ -649,6 +722,8 @@ async function buildRepoRecord(repo) {
         has_release: false,
         release_overdue: false
       },
+      security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+      workflow_status: { has_workflows: false, latest_run: null },
       copilot_activity: {
         copilot_branch_count: 0,
         copilot_branches: [],
