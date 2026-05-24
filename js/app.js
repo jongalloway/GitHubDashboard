@@ -55,6 +55,43 @@
   // Module-level auth state
   let configuredOwner = null;
 
+  // ── Pin / Close state ─────────────────────────────────────
+  const PINNED_KEY = 'ghd-pinned';
+  const CLOSED_KEY = 'ghd-closed';
+  let _currentRepos = null;
+
+  function getPinnedRepos() {
+    try { return new Set(JSON.parse(localStorage.getItem(PINNED_KEY)) || []); }
+    catch (_) { return new Set(); }
+  }
+  function getClosedRepos() {
+    try { return new Set(JSON.parse(localStorage.getItem(CLOSED_KEY)) || []); }
+    catch (_) { return new Set(); }
+  }
+  function _savePinned(s) { localStorage.setItem(PINNED_KEY, JSON.stringify([...s])); }
+  function _saveClosed(s) { localStorage.setItem(CLOSED_KEY, JSON.stringify([...s])); }
+
+  function _togglePin(repoName) {
+    const pinned = getPinnedRepos();
+    if (pinned.has(repoName)) { pinned.delete(repoName); } else { pinned.add(repoName); }
+    _savePinned(pinned);
+    renderRepos();
+  }
+  function _closeRepo(repoName) {
+    const closed = getClosedRepos();
+    closed.add(repoName);
+    _saveClosed(closed);
+    const pinned = getPinnedRepos();
+    if (pinned.has(repoName)) { pinned.delete(repoName); _savePinned(pinned); }
+    renderRepos();
+  }
+  function _restoreRepo(repoName) {
+    const closed = getClosedRepos();
+    closed.delete(repoName);
+    _saveClosed(closed);
+    renderRepos();
+  }
+
   document.addEventListener('DOMContentLoaded', init);
 
   async function init() {
@@ -135,7 +172,7 @@
   function _setAuthUI(state) {
     if (root.signInBtn) root.signInBtn.hidden = (state !== 'public');
     if (root.signOutBtn) root.signOutBtn.hidden = (state !== 'private');
-    if (root.refreshBtn) root.refreshBtn.hidden = (state !== 'private');
+    if (root.refreshBtn) root.refreshBtn.hidden = false;
 
     if (root.viewBadge) {
       const labels = {
@@ -149,10 +186,10 @@
 
     if (root.refreshBtn && state === 'refreshing') {
       root.refreshBtn.disabled = true;
-      root.refreshBtn.textContent = 'Refreshing…';
-    } else if (root.refreshBtn && state === 'private') {
+      root.refreshBtn.classList.add('spinning');
+    } else if (root.refreshBtn) {
       root.refreshBtn.disabled = false;
-      root.refreshBtn.textContent = 'Refresh private data';
+      root.refreshBtn.classList.remove('spinning');
     }
   }
 
@@ -178,10 +215,13 @@
 
   async function _handleRefresh() {
     const Auth = window.GHD && window.GHD.Auth;
-    if (!Auth || !Auth.isAuthenticated()) return;
     _setAuthUI('refreshing');
-    await _backgroundRefresh();
-    _setAuthUI('private');
+    if (Auth && Auth.isAuthenticated()) {
+      await _backgroundRefresh();
+      _setAuthUI('private');
+    } else {
+      window.location.reload();
+    }
   }
 
   // ── Private data rendering ────────────────────────────────
@@ -350,16 +390,34 @@
   }
 
   function renderRepos(repos) {
+    if (repos != null) _currentRepos = repos;
+    if (!_currentRepos) return;
+
     root.stateRegion.innerHTML = '';
     root.repoGrid.hidden = false;
     root.repoGrid.innerHTML = '';
 
-    repos.forEach((repo) => {
-      root.repoGrid.appendChild(buildRepoCard(repo));
+    // Remove any existing closed section
+    const existing = document.getElementById('closed-repos-section');
+    if (existing) existing.remove();
+
+    const pinned = getPinnedRepos();
+    const closed = getClosedRepos();
+
+    const pinnedRepos = _currentRepos.filter(r => pinned.has(r.name) && !closed.has(r.name));
+    const normalRepos = _currentRepos.filter(r => !pinned.has(r.name) && !closed.has(r.name));
+    const closedRepos = _currentRepos.filter(r => closed.has(r.name));
+
+    [...pinnedRepos, ...normalRepos].forEach(repo => {
+      root.repoGrid.appendChild(buildRepoCard(repo, pinned.has(repo.name)));
     });
+
+    if (closedRepos.length) {
+      root.repoGrid.insertAdjacentElement('afterend', buildClosedSection(closedRepos));
+    }
   }
 
-  function buildRepoCard(repo) {
+  function buildRepoCard(repo, isPinned = false) {
     const card = document.createElement('article');
     const status = getStatus(repo);
     const language = repo.primary_language || 'Unknown';
@@ -373,12 +431,17 @@
     const priorityIssues = getPriorityIssues(repo).slice(0, 3);
     const reviewItems = Array.isArray(pendingReviews.items) ? pendingReviews.items.slice(0, 3) : [];
 
-    card.className = `repo-card status-${status}`;
+    card.className = `repo-card status-${status}${isPinned ? ' is-pinned' : ''}`;
+
+    const headerRight = document.createElement('div');
+    headerRight.className = 'repo-header-right';
+    headerRight.appendChild(buildCardActions(repo, isPinned));
+    headerRight.appendChild(buildNextStepPanel(repo, status));
 
     const header = document.createElement('div');
     header.className = 'repo-header';
     header.appendChild(buildRepoHeaderCopy(repo, language, description, lastCommit, lastCommitAbsolute, topics));
-    header.appendChild(buildNextStepPanel(repo, status));
+    header.appendChild(headerRight);
 
     const badges = document.createElement('div');
     badges.className = 'badge-row';
@@ -391,6 +454,68 @@
 
     card.append(header, badges, grid);
     return card;
+  }
+
+  function buildCardActions(repo, isPinned) {
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+
+    const pinBtn = document.createElement('button');
+    pinBtn.className = `card-btn pin-btn${isPinned ? ' active' : ''}`;
+    pinBtn.type = 'button';
+    pinBtn.title = isPinned ? 'Unpin' : 'Pin to top';
+    pinBtn.setAttribute('aria-label', isPinned ? 'Unpin repository' : 'Pin repository to top');
+    pinBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-1.219.902-1.414.707-.195-.195.512-1.22.707-1.414l3.182-3.182-2.828-2.829a.5.5 0 0 1 0-.707c.688-.688 1.673-.767 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133a2.772 2.772 0 0 1-.04-.461c0-.43.108-1.022.589-1.503a.5.5 0 0 1 .353-.146z"/></svg>';
+    pinBtn.addEventListener('click', (e) => { e.preventDefault(); _togglePin(repo.name); });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'card-btn close-btn';
+    closeBtn.type = 'button';
+    closeBtn.title = 'Close';
+    closeBtn.setAttribute('aria-label', 'Close repository card');
+    closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>';
+    closeBtn.addEventListener('click', (e) => { e.preventDefault(); _closeRepo(repo.name); });
+
+    actions.append(pinBtn, closeBtn);
+    return actions;
+  }
+
+  function buildClosedSection(closedRepos) {
+    const section = document.createElement('section');
+    section.id = 'closed-repos-section';
+    section.className = 'closed-repos-section';
+
+    const heading = document.createElement('h3');
+    heading.className = 'closed-repos-heading';
+    heading.textContent = `Closed (${closedRepos.length})`;
+
+    const list = document.createElement('div');
+    list.className = 'closed-repos-list';
+
+    closedRepos.forEach(repo => {
+      const item = document.createElement('div');
+      item.className = 'closed-repo-item';
+
+      const nameLink = document.createElement('a');
+      nameLink.className = 'closed-repo-name';
+      nameLink.href = repo.html_url || '#';
+      nameLink.target = '_blank';
+      nameLink.rel = 'noreferrer';
+      nameLink.textContent = repo.name;
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'restore-btn';
+      restoreBtn.type = 'button';
+      restoreBtn.title = 'Restore repository card';
+      restoreBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="margin-right:0.3em"><path d="M1.5 1.5A.5.5 0 0 1 2 2v2.207l.646-.646a.5.5 0 0 1 .708.708l-1.5 1.5a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L1 4.207V2a.5.5 0 0 1 .5-.5zm10 3a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5zM4.5 2a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V2.5a.5.5 0 0 1 .5-.5zm4 1a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-1 0V3.5a.5.5 0 0 1 .5-.5z"/></svg>Restore';
+      restoreBtn.addEventListener('click', () => _restoreRepo(repo.name));
+
+      item.append(nameLink, restoreBtn);
+      list.appendChild(item);
+    });
+
+    section.append(heading, list);
+    return section;
   }
 
   function buildRepoHeaderCopy(repo, language, description, lastCommit, lastCommitAbsolute, topics) {
@@ -411,6 +536,13 @@
     const titleRow = document.createElement('div');
     titleRow.className = 'badge-row';
     titleRow.append(title, languageBadge);
+    if (repo.is_private) {
+      const privateBadge = document.createElement('span');
+      privateBadge.className = 'badge badge--private';
+      privateBadge.title = 'Private repository';
+      privateBadge.textContent = '🔒 Private';
+      titleRow.append(privateBadge);
+    }
 
     const descriptionNode = document.createElement('p');
     descriptionNode.className = 'repo-description';

@@ -80,6 +80,9 @@ window.GHD = window.GHD || {};
         <p class="pat-modal-permissions">
           Required permissions: <strong>Repository: Metadata (read), Contents (read), Issues (read), Pull requests (read)</strong>
         </p>
+        <p class="pat-modal-privacy">
+          🔒 Your token is stored only in your browser's localStorage and is never sent to any server or shared with anyone.
+        </p>
         <div class="pat-modal-field">
           <label for="pat-input" class="pat-modal-label">Personal Access Token</label>
           <input

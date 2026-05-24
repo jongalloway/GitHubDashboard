@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="icons/icon.svg" />
-    <link rel="stylesheet" href="css/style.css?v=2" />
+    <link rel="stylesheet" href="css/style.css?v=4" />
     <script src="js/theme.js"></script>
     <script src="js/auth.js" defer></script>
     <script src="js/cache.js" defer></script>
@@ -30,6 +30,7 @@
           <p class="page-subtitle" id="header-note">Loading dashboard context…</p>
         </div>
         <div class="header-right">
+          <button class="theme-toggle" id="refresh-btn" type="button" aria-label="Refresh private data" hidden>↻</button>
           <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme" onclick="GHD.Theme.toggle()">☀️</button>
           <div class="header-meta" id="refresh-meta" aria-live="polite">
             Refreshing dashboard data…
@@ -37,7 +38,6 @@
           <div class="auth-controls" id="auth-controls" aria-live="polite">
             <span class="view-badge view-badge--public" id="view-badge">Public view</span>
             <button class="auth-btn" id="sign-in-btn" type="button">Sign in</button>
-            <button class="auth-btn auth-btn--secondary" id="refresh-btn" type="button" hidden>Refresh private data</button>
             <button class="auth-btn auth-btn--secondary" id="sign-out-btn" type="button" hidden>Sign out</button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ghd-v2';
+const CACHE_VERSION = 'ghd-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

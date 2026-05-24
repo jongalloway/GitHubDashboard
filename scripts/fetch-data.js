@@ -580,6 +580,7 @@ async function buildRepoRecord(repo) {
       last_commit_date: lastCommitDate,
       is_fork: repo.fork,
       is_archived: repo.archived,
+      is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
       releases: releaseInfo,
       copilot_activity: {
@@ -639,6 +640,7 @@ async function buildRepoRecord(repo) {
       last_commit_date: null,
       is_fork: repo.fork,
       is_archived: repo.archived,
+      is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
       releases: {
         latest_tag: null,
