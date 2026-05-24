@@ -843,6 +843,11 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const securityBadge = buildSecurityBadge(repo);
+    if (securityBadge) {
+      badges.push(securityBadge);
+    }
+
     const workflowBadge = buildWorkflowBadge(repo);
     if (workflowBadge) {
       badges.push(workflowBadge);
@@ -902,6 +907,28 @@
     return badge;
   }
 
+  function buildSecurityBadge(repo) {
+    const alerts = repo.security_alerts;
+    if (!alerts || alerts.total === 0) return null;
+
+    const critical = alerts.critical || 0;
+    const high = alerts.high || 0;
+
+    let label, tone;
+    if (critical > 0) {
+      label = `${critical} critical`;
+      tone = 'danger';
+    } else if (high > 0) {
+      label = `${high} high`;
+      tone = 'warning';
+    } else {
+      label = `${alerts.total} alert${alerts.total === 1 ? '' : 's'}`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔒', label, tone);
+  }
+
   function buildWorkflowBadge(repo) {
     if (!repo.workflow_status?.has_workflows) return null;
 
@@ -912,7 +939,7 @@
     let icon, text, tone;
     if (conclusion === 'success') {
       icon = '✅'; text = 'CI passing'; tone = 'success';
-    } else if (conclusion === 'failure') {
+    } else if (['failure', 'timed_out', 'startup_failure', 'action_required'].includes(conclusion)) {
       icon = '❌'; text = 'CI failing'; tone = 'danger';
     } else if (conclusion === 'cancelled') {
       icon = '⚫'; text = 'CI cancelled'; tone = 'neutral';
