@@ -388,6 +388,30 @@ h3 {
   color: var(--danger);
 }
 
+.issue-btn:hover {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: var(--accent);
+}
+
+/* ── Quick Issue modal ──────────────────────────────────── */
+
+.quick-issue-modal {
+  max-width: 520px;
+}
+
+.qi-body {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 6rem;
+}
+
+.pat-modal-scope-optional {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.83rem;
+  opacity: 0.85;
+}
+
 /* ── Closed repos section ────────────────────────────────── */
 
 .closed-repos-section {

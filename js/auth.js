@@ -16,6 +16,7 @@ window.GHD = window.GHD || {};
 
   const TOKEN_KEY = 'ghd_token';
   const LOGIN_KEY = 'ghd_login';
+  const WRITE_KEY = 'ghd_write';
   const API_BASE = 'https://api.github.com';
 
   // ── Storage helpers ──────────────────────────────────────
@@ -32,7 +33,16 @@ window.GHD = window.GHD || {};
     try {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(LOGIN_KEY);
+      localStorage.removeItem(WRITE_KEY);
     } catch (_) {}
+  }
+
+  function _saveWriteAccess(val) {
+    try { localStorage.setItem(WRITE_KEY, val ? '1' : '0'); } catch (_) {}
+  }
+
+  function _loadWriteAccess() {
+    try { return localStorage.getItem(WRITE_KEY) !== '0'; } catch (_) { return true; }
   }
 
   function _saveLogin(login) {
@@ -55,7 +65,20 @@ window.GHD = window.GHD || {};
       });
       if (!response.ok) return null;
       const user = await response.json();
-      return user.login || null;
+      if (!user.login) return null;
+
+      // Detect write-capable scope for Quick Issue feature.
+      // Classic PATs return X-OAuth-Scopes; fine-grained PATs do not (null header).
+      const scopeHeader = response.headers.get('X-OAuth-Scopes');
+      if (scopeHeader === null) {
+        // Fine-grained PAT — assume write access was configured
+        _saveWriteAccess(true);
+      } else {
+        const scopes = scopeHeader.split(',').map(s => s.trim());
+        _saveWriteAccess(scopes.includes('repo') || scopes.includes('public_repo'));
+      }
+
+      return user.login;
     } catch (_) {
       return null;
     }
@@ -78,7 +101,8 @@ window.GHD = window.GHD || {};
           <a class="pat-modal-link" href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noreferrer">Generate one on GitHub →</a>
         </p>
         <p class="pat-modal-permissions">
-          Required permissions: <strong>Repository: Metadata (read), Contents (read), Issues (read), Pull requests (read)</strong>
+          Required permissions: <strong>Metadata (read), Contents (read), Issues (read), Pull requests (read)</strong><br>
+          <span class="pat-modal-scope-optional">Optional — for <strong>Quick Issue</strong>: <strong>Issues: Read &amp; write</strong> (fine-grained PAT) or <strong>repo</strong> scope (classic PAT)</span>
         </p>
         <p class="pat-modal-privacy">
           🔒 Your token is stored only in your browser's localStorage and is never sent to any server or shared with anyone.
@@ -241,6 +265,7 @@ window.GHD = window.GHD || {};
     isAuthenticated,
     getValidToken,
     getSession,
+    hasIssueWriteAccess: () => !!_loadToken() && _loadWriteAccess(),
     ready
   };
 }(window.GHD));

@@ -515,7 +515,21 @@
     closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>';
     closeBtn.addEventListener('click', (e) => { e.preventDefault(); _closeRepo(repo.name); });
 
-    actions.append(pinBtn, noteBtn, closeBtn);
+    const buttons = [pinBtn, noteBtn];
+
+    if (GHD.Auth.hasIssueWriteAccess()) {
+      const issueBtn = document.createElement('button');
+      issueBtn.className = 'card-btn issue-btn';
+      issueBtn.type = 'button';
+      issueBtn.title = 'Quick issue';
+      issueBtn.setAttribute('aria-label', 'Create quick issue');
+      issueBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0z"/></svg>';
+      issueBtn.addEventListener('click', (e) => { e.preventDefault(); _showQuickIssueModal(repo); });
+      buttons.push(issueBtn);
+    }
+
+    buttons.push(closeBtn);
+    actions.append(...buttons);
     return actions;
   }
 
@@ -565,6 +579,116 @@
 
     panel.append(header, textarea);
     return panel;
+  }
+
+  function _showQuickIssueModal(repo) {
+    const existing = document.getElementById('quick-issue-overlay');
+    if (existing) existing.remove();
+
+    const owner = repo.full_name ? repo.full_name.split('/')[0] : configuredOwner;
+    const fullName = repo.full_name || `${owner}/${repo.name}`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'quick-issue-overlay';
+    overlay.className = 'pat-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'qi-modal-title');
+    overlay.innerHTML = `
+      <div class="pat-modal quick-issue-modal">
+        <h2 class="pat-modal-title" id="qi-modal-title">Quick Issue — ${escapeHtml(repo.name)}</h2>
+        <div class="pat-modal-field">
+          <label for="qi-title" class="pat-modal-label">Title</label>
+          <input id="qi-title" class="pat-modal-input" type="text" placeholder="Issue title…" autocomplete="off" />
+        </div>
+        <div class="pat-modal-field">
+          <label for="qi-body" class="pat-modal-label">Description <span style="font-weight:400;opacity:0.6">(optional)</span></label>
+          <textarea id="qi-body" class="pat-modal-input qi-body" rows="4" placeholder="Describe the issue…"></textarea>
+        </div>
+        <p class="pat-modal-error" id="qi-error" hidden></p>
+        <div class="pat-modal-actions">
+          <button class="auth-btn" id="qi-submit" type="button">Create Issue</button>
+          <button class="auth-btn auth-btn--secondary" id="qi-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const titleInput = overlay.querySelector('#qi-title');
+    const bodyInput = overlay.querySelector('#qi-body');
+    const submitBtn = overlay.querySelector('#qi-submit');
+    const cancelBtn = overlay.querySelector('#qi-cancel');
+    const errorEl = overlay.querySelector('#qi-error');
+    const modalEl = overlay.querySelector('.quick-issue-modal');
+
+    titleInput.focus();
+
+    function _showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+    }
+
+    function _close() { overlay.remove(); }
+
+    async function _onSubmit() {
+      const title = titleInput.value.trim();
+      if (!title) { _showError('A title is required.'); return; }
+
+      const token = GHD.Auth.getToken();
+      if (!token) { _showError('Not signed in.'); return; }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating…';
+      errorEl.hidden = true;
+
+      try {
+        const issue = await _createIssue(fullName, title, bodyInput.value.trim(), token);
+        modalEl.innerHTML = `
+          <h2 class="pat-modal-title" style="color:var(--success)">Issue Created ✓</h2>
+          <p class="pat-modal-copy">
+            <a href="${escapeHtml(issue.html_url)}" target="_blank" rel="noreferrer" class="pat-modal-link">
+              #${issue.number}: ${escapeHtml(issue.title)} →
+            </a>
+          </p>
+          <div class="pat-modal-actions">
+            <button class="auth-btn auth-btn--secondary" id="qi-done" type="button">Close</button>
+          </div>
+        `;
+        overlay.querySelector('#qi-done')?.addEventListener('click', _close);
+        setTimeout(_close, 4000);
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Issue';
+        _showError(err.message || 'Failed to create issue. Check token permissions.');
+      }
+    }
+
+    submitBtn.addEventListener('click', _onSubmit);
+    cancelBtn.addEventListener('click', _close);
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') _close();
+      if (e.key === 'Enter' && e.target === titleInput) _onSubmit();
+    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) _close(); });
+  }
+
+  async function _createIssue(fullName, title, body, token) {
+    const response = await fetch(`https://api.github.com/repos/${fullName}/issues`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title, body: body || '' })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || `GitHub API error: HTTP ${response.status}`);
+    }
+
+    return response.json();
   }
 
   function buildClosedSection(closedRepos) {
