@@ -843,6 +843,11 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const workflowBadge = buildWorkflowBadge(repo);
+    if (workflowBadge) {
+      badges.push(workflowBadge);
+    }
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -894,6 +899,41 @@
     const badge = document.createElement('span');
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
+    return badge;
+  }
+
+  function buildWorkflowBadge(repo) {
+    if (!repo.workflow_status?.has_workflows) return null;
+
+    const run = repo.workflow_status.latest_run;
+    const status = run?.status || null;
+    const conclusion = run?.conclusion || null;
+
+    let icon, text, tone;
+    if (conclusion === 'success') {
+      icon = '✅'; text = 'CI passing'; tone = 'success';
+    } else if (conclusion === 'failure') {
+      icon = '❌'; text = 'CI failing'; tone = 'danger';
+    } else if (conclusion === 'cancelled') {
+      icon = '⚫'; text = 'CI cancelled'; tone = 'neutral';
+    } else if (status === 'in_progress' || status === 'queued' || conclusion === 'in_progress') {
+      icon = '⏳'; text = 'CI running'; tone = 'neutral';
+    } else {
+      icon = '⚪'; text = 'CI unknown'; tone = 'neutral';
+    }
+
+    const badge = buildBadge(icon, text, tone);
+
+    if (run?.html_url) {
+      const link = document.createElement('a');
+      link.href = run.html_url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.className = 'badge-link';
+      link.appendChild(badge);
+      return link;
+    }
+
     return badge;
   }
 
