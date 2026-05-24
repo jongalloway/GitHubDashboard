@@ -14,7 +14,7 @@ This project is designed to be forked. The committed `data/dashboard.json` shows
 
 1. **Fork** this repository
 2. Go to **Settings → Variables → Actions** and add a repository variable:
-   - Name: `GITHUB_USERNAME`
+   - Name: `DASHBOARD_OWNER`
    - Value: *your GitHub username*
 3. Go to **Settings → Pages** and set Source to **GitHub Actions**
 4. Go to **Actions → Update Dashboard** and click **Run workflow**
@@ -29,7 +29,7 @@ The workflow runs daily at 6:00 AM UTC and can be triggered manually anytime.
 npm install
 
 # Set your username and run the data fetch
-export GITHUB_USERNAME=your-username
+export DASHBOARD_OWNER=your-username
 npm run fetch-data
 
 # Serve locally (any static server works)

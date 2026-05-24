@@ -33,17 +33,17 @@ jobs:
       - name: Validate repository configuration
         shell: bash
         env:
-          GITHUB_USERNAME: ${{ vars.GITHUB_USERNAME }}
+          DASHBOARD_OWNER: ${{ vars.DASHBOARD_OWNER }}
         run: |
-          if [ -z "${GITHUB_USERNAME}" ]; then
-            echo "Repository variable GITHUB_USERNAME is required." >&2
+          if [ -z "${DASHBOARD_OWNER}" ]; then
+            echo "Repository variable DASHBOARD_OWNER is required." >&2
             exit 1
           fi
 
       - name: Fetch dashboard data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_USERNAME: ${{ vars.GITHUB_USERNAME }}
+          DASHBOARD_OWNER: ${{ vars.DASHBOARD_OWNER }}
         run: npm run fetch-data
 
       - name: Configure GitHub Pages
@@ -64,7 +64,7 @@ jobs:
             fi
           done
 
-          for dir in assets css js images img; do
+          for dir in assets css js icons images img; do
             if [ -d "$dir" ]; then
               cp -R "$dir" "site/$dir"
             fi

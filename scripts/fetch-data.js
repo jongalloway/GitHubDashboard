@@ -9,13 +9,13 @@ const RELEASE_OVERDUE_THRESHOLD = 10;
 const STALE_DAYS = 14;
 const PRIORITY_ISSUE_LIMIT = 3;
 
-const owner = process.env.GITHUB_USERNAME?.trim();
+const owner = process.env.DASHBOARD_OWNER?.trim();
 const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || '';
 const generatedAt = process.env.GENERATED_AT_OVERRIDE?.trim() || new Date().toISOString();
 const now = new Date(generatedAt);
 
 if (!owner) {
-  console.error('GITHUB_USERNAME is required. Configure it as a repository variable in GitHub Actions.');
+  console.error('DASHBOARD_OWNER is required. Configure it as a repository variable in GitHub Actions.');
   process.exit(1);
 }
 
