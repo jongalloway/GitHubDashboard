@@ -253,7 +253,7 @@ function issuePriority(issue) {
   return { score: 0, reason: null, ageDays, isUnassigned, isUnlabeled };
 }
 
-function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease, securityAlerts, ciFailure }) {
+function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease, securityAlerts, ciFailure, manyBranches }) {
   const parts = [];
 
   if (ciFailure) {
@@ -266,6 +266,11 @@ function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCou
     parts.push(`${criticalCount} critical security alert${criticalCount === 1 ? '' : 's'}`);
   } else if (highCount > 0) {
     parts.push(`${highCount} high security alert${highCount === 1 ? '' : 's'}`);
+  }
+
+  if (manyBranches) {
+    parts.push('has many branches');
+  }
 
   if (releaseOverdue) {
     parts.push(hasRelease ? 'Release is overdue' : 'Recent commits have not shipped in a release');
@@ -579,6 +584,9 @@ async function buildRepoRecord(repo) {
       .map((branch) => branch.name)
       .filter((branchName) => branchName.toLowerCase().startsWith('squad/'));
 
+    // Count non-default branches as a proxy for potential staleness (no N+1 calls needed)
+    const nonDefaultBranchCount = branches.filter((b) => b.name !== repo.default_branch).length;
+
     const copilotPulls = pulls.filter((pull) => pullSources.get(pull.number) === 'copilot');
     const copilotIssues = issueRecords.filter((issue) =>
       normalizeLabels(issue.labels).some((label) => label.toLowerCase().includes('copilot'))
@@ -636,6 +644,10 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    if (nonDefaultBranchCount > 5) {
+      signals.push('many-branches');
+    }
+
     const hasCodeAlerts = (codeScanAlerts?.critical || 0) + (codeScanAlerts?.high || 0) + (codeScanAlerts?.error || 0) > 0;
     if (hasCodeAlerts) {
       signals.push('code-alerts');
@@ -674,6 +686,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: openIssuesCount,
       open_pull_requests_count: pulls.length,
       last_commit_date: lastCommitDate,
+      non_default_branch_count: nonDefaultBranchCount,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
@@ -719,7 +732,8 @@ async function buildRepoRecord(repo) {
           hasRecentActivity,
           hasRelease,
           securityAlerts,
-          ciFailure
+          ciFailure,
+          manyBranches: nonDefaultBranchCount > 5
         })
       }
     };
@@ -739,6 +753,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: 0,
       open_pull_requests_count: 0,
       last_commit_date: null,
+      non_default_branch_count: 0,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
