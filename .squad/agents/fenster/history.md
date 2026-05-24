@@ -20,3 +20,10 @@ Scribe consolidated team deliverables:
 - **Hockney (Tester):** Test plan created — 148 test cases covering pipeline, UI, deployment, configuration
 
 All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs created for handoff tracking.
+
+## Learnings (2026-05-23 Squad Detection)
+
+- Mirrored the Copilot detection pattern (branch prefix, PR head ref, Contents API file check) to add Squad detection to both `scripts/fetch-data.js` (server pipeline) and `js/github-client.js` (browser pipeline).
+- Squad signals: `squad-enabled` (team.md exists), `squad-branch` (squad/ prefix branches), `squad-open-pr` (PRs from squad/ branches), `squad-work-ready` (composite signal for next_steps).
+- The browser `_fetchJson` already returns null on 404, making it a drop-in for the Contents API check without extra error handling.
+- Both pipelines now emit `squad_activity` in the same shape, keeping the dashboard.json contract consistent for the frontend.

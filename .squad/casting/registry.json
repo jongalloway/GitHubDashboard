@@ -1,0 +1,32 @@
+{
+  "agents": {
+    "keyser": {
+      "persistent_name": "Keyser",
+      "universe": "The Usual Suspects",
+      "created_at": "2026-05-23T02:22:49Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "mcmanus": {
+      "persistent_name": "McManus",
+      "universe": "The Usual Suspects",
+      "created_at": "2026-05-23T02:22:49Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "fenster": {
+      "persistent_name": "Fenster",
+      "universe": "The Usual Suspects",
+      "created_at": "2026-05-23T02:22:49Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "hockney": {
+      "persistent_name": "Hockney",
+      "universe": "The Usual Suspects",
+      "created_at": "2026-05-23T02:22:49Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
+}

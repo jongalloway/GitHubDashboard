@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHub Dashboard</title>
+    <meta
+      name="description"
+      content="A static GitHub activity dashboard for release readiness, reviews, issues, and Copilot work."
+    />
+    <meta name="theme-color" content="#0b1120" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon.svg" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+    <script src="js/theme.js"></script>
+    <script src="js/auth.js" defer></script>
+    <script src="js/cache.js" defer></script>
+    <script src="js/github-client.js" defer></script>
+    <script src="js/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Static GitHub Pages dashboard</p>
+          <h1>GitHub Dashboard</h1>
+          <p class="page-subtitle" id="header-note">Loading dashboard context…</p>
+        </div>
+        <div class="header-right">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme" onclick="GHD.Theme.toggle()">☀️</button>
+          <div class="header-meta" id="refresh-meta" aria-live="polite">
+            Refreshing dashboard data…
+          </div>
+          <div class="auth-controls" id="auth-controls" aria-live="polite">
+            <span class="view-badge view-badge--public" id="view-badge">Public view</span>
+            <button class="auth-btn" id="sign-in-btn" type="button">Sign in</button>
+            <button class="auth-btn auth-btn--secondary" id="refresh-btn" type="button" hidden>Refresh private data</button>
+            <button class="auth-btn auth-btn--secondary" id="sign-out-btn" type="button" hidden>Sign out</button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="summary-grid" id="summary-grid" aria-label="Dashboard summary"></section>
+
+        <section class="content-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Repositories</p>
+              <h2>Recent repo activity</h2>
+            </div>
+            <p class="section-copy">
+              Release signals, review queues, issues, and Copilot activity for the configured account.
+            </p>
+          </div>
+
+          <div id="state-region" aria-live="polite"></div>
+          <section
+            class="repo-grid"
+            id="repo-grid"
+            aria-label="Repository dashboard cards"
+            hidden
+          ></section>
+        </section>
+      </main>
+    </div>
+
+    <noscript>
+      <div class="noscript-banner">
+        This dashboard needs JavaScript enabled to load <code>data/dashboard.json</code>.
+      </div>
+    </noscript>
+  </body>
+</html>

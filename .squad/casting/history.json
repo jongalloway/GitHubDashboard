@@ -1,0 +1,17 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "The Usual Suspects",
+      "used_at": "2026-05-23T02:22:49Z",
+      "project": "GitHubDashboard"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "2026-05-23-initial": {
+      "assignment_id": "2026-05-23-initial",
+      "universe": "The Usual Suspects",
+      "agents": ["Keyser", "McManus", "Fenster", "Hockney"],
+      "created_at": "2026-05-23T02:22:49Z"
+    }
+  }
+}

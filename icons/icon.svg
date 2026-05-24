@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+
+  <!-- Activity bars (representing repos/status) -->
+  <rect x="64"  y="304" width="76" height="160" rx="14" fill="#1d4ed8"/>
+  <rect x="172" y="208" width="76" height="256" rx="14" fill="#2563eb"/>
+  <rect x="280" y="112" width="76" height="352" rx="14" fill="#3b82f6"/>
+  <rect x="388" y="240" width="76" height="224" rx="14" fill="#60a5fa"/>
+
+  <!-- Trend line -->
+  <polyline
+    points="102,304 210,208 318,112 426,240"
+    stroke="#93c5fd"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"/>
+
+  <!-- Data point dots -->
+  <circle cx="102" cy="304" r="14" fill="#bfdbfe"/>
+  <circle cx="210" cy="208" r="14" fill="#bfdbfe"/>
+  <circle cx="318" cy="112" r="18" fill="#e0f2fe" stroke="#93c5fd" stroke-width="6"/>
+  <circle cx="426" cy="240" r="14" fill="#bfdbfe"/>
+</svg>

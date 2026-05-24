@@ -14,7 +14,7 @@
 **Date:** 2026-05-23
 
 - Decision: Use `gh auth token` to provide `GITHUB_TOKEN` for the local fetch run and treat the current pipeline as healthy without code changes.
-- Why: The authenticated run completed successfully, generated `data/dashboard.json` with live repository data for `jongalloway`, and the output included the PRD data contract fields (`releases`, `copilot_activity`, `priority_issues`, `pending_reviews`, `next_steps`).
+- Why: The authenticated run completed successfully, generated `data/dashboard.json` with live repository data for the configured owner, and the output included the PRD data contract fields (`releases`, `copilot_activity`, `priority_issues`, `pending_reviews`, `next_steps`).
 
 ---
 

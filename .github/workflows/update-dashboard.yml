@@ -1,0 +1,107 @@
+name: Update Dashboard
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate repository configuration
+        shell: bash
+        env:
+          GITHUB_USERNAME: ${{ vars.GITHUB_USERNAME }}
+        run: |
+          if [ -z "${GITHUB_USERNAME}" ]; then
+            echo "Repository variable GITHUB_USERNAME is required." >&2
+            exit 1
+          fi
+
+      - name: Fetch dashboard data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: ${{ vars.GITHUB_USERNAME }}
+        run: npm run fetch-data
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Stage GitHub Pages artifact
+        shell: bash
+        run: |
+          rm -rf site
+          mkdir -p site/data
+          cp data/dashboard.json site/data/dashboard.json
+          touch site/.nojekyll
+
+          shopt -s nullglob
+          for file in *.html *.css *.js *.json; do
+            if [ "$file" != "package.json" ] && [ "$file" != "package-lock.json" ]; then
+              cp "$file" "site/$file"
+            fi
+          done
+
+          for dir in assets css js images img; do
+            if [ -d "$dir" ]; then
+              cp -R "$dir" "site/$dir"
+            fi
+          done
+
+          if [ ! -f site/index.html ]; then
+            printf '%s\n' \
+              '<!doctype html>' \
+              '<html lang="en">' \
+              '  <head>' \
+              '    <meta charset="utf-8">' \
+              '    <meta name="viewport" content="width=device-width, initial-scale=1">' \
+              '    <title>GitHubDashboard</title>' \
+              '  </head>' \
+              '  <body>' \
+              '    <main>' \
+              '      <h1>GitHubDashboard data pipeline is live.</h1>' \
+              '      <p>The generated dashboard data is available at <a href="./data/dashboard.json">data/dashboard.json</a>.</p>' \
+              '      <p>Frontend assets can be added later without changing this workflow.</p>' \
+              '    </main>' \
+              '  </body>' \
+              '</html>' > site/index.html
+          fi
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: update-data
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
