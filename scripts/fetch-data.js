@@ -475,6 +475,28 @@ function buildPriorityIssues(issues) {
     .map(({ score, ...issue }) => issue);
 }
 
+async function getTrafficData(fullName) {
+  const [viewsData, clonesData] = await Promise.all([
+    fetchJson(`/repos/${fullName}/traffic/views`, {
+      context: `Fetching traffic views for ${fullName}`,
+      allowStatuses: [403, 404, 451]
+    }),
+    fetchJson(`/repos/${fullName}/traffic/clones`, {
+      context: `Fetching traffic clones for ${fullName}`,
+      allowStatuses: [403, 404, 451]
+    })
+  ]);
+
+  if (!viewsData && !clonesData) {
+    return null;
+  }
+
+  return {
+    views: { count: viewsData?.count || 0, uniques: viewsData?.uniques || 0 },
+    clones: { count: clonesData?.count || 0, uniques: clonesData?.uniques || 0 }
+  };
+}
+
 async function getCodeScanningAlerts(fullName) {
   const alerts = await paginate(`/repos/${fullName}/code-scanning/alerts?state=open&per_page=100`, {
     context: `Fetching code scanning alerts for ${fullName}`,
@@ -501,7 +523,7 @@ async function buildRepoRecord(repo) {
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts, trafficData] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -513,7 +535,8 @@ async function buildRepoRecord(repo) {
       }),
       getDependabotAlerts(fullName),
       getLatestWorkflowRun(fullName),
-      getCodeScanningAlerts(fullName)
+      getCodeScanningAlerts(fullName),
+      getTrafficData(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -747,7 +770,8 @@ async function buildRepoRecord(repo) {
           ciFailure,
           manyBranches: nonDefaultBranchCount > 5
         })
-      }
+      },
+      traffic: trafficData
     };
   } catch (error) {
     warn(`Falling back to partial data for ${fullName}: ${error.message}`);
@@ -808,7 +832,8 @@ async function buildRepoRecord(repo) {
         summary: hasRecentActivity
           ? 'Repository is active, but some GitHub API data could not be fetched.'
           : 'Repository is quiet, and some GitHub API data could not be fetched.'
-      }
+      },
+      traffic: null
     };
   }
 }
