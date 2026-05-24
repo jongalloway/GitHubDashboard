@@ -356,6 +356,14 @@ async function getBranches(fullName) {
   });
 }
 
+async function checkHasReadme(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/readme`, {
+    context: `Checking README for ${fullName}`,
+    allowStatuses: [404]
+  });
+  return data !== null;
+}
+
 async function getReviewState(fullName, pullNumber) {
   const reviews = await paginate(`/repos/${fullName}/pulls/${pullNumber}/reviews?per_page=100`, {
     context: `Fetching reviews for ${fullName}#${pullNumber}`,
@@ -414,7 +422,7 @@ async function buildRepoRecord(repo) {
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, hasReadme] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -423,7 +431,8 @@ async function buildRepoRecord(repo) {
       fetchJson(`/repos/${fullName}/contents/.squad/team.md`, {
         context: `Checking Squad presence for ${fullName}`,
         allowStatuses: [404]
-      })
+      }),
+      checkHasReadme(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -582,6 +591,8 @@ async function buildRepoRecord(repo) {
       is_archived: repo.archived,
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
+      license: repo.license?.spdx_id || null,
+      has_readme: hasReadme,
       releases: releaseInfo,
       copilot_activity: {
         copilot_branch_count: copilotBranches.length,
@@ -642,6 +653,8 @@ async function buildRepoRecord(repo) {
       is_archived: repo.archived,
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
+      license: repo.license?.spdx_id || null,
+      has_readme: null,
       releases: {
         latest_tag: null,
         latest_published_at: null,
