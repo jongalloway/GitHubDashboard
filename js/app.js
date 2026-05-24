@@ -55,11 +55,12 @@
   // Module-level auth state
   let configuredOwner = null;
 
-  // ── Pin / Close / Notes state ─────────────────────────────
+  // ── Pin / Close / Notes / Release-NA state ────────────────
   const PINNED_KEY = 'ghd-pinned';
   const CLOSED_KEY = 'ghd-closed';
   const NOTES_KEY = 'ghd-notes';
   const NOTES_OPEN_KEY = 'ghd-notes-open';
+  const RELEASE_NA_KEY = 'ghd-release-na';
   let _currentRepos = null;
 
   function getPinnedRepos() {
@@ -70,8 +71,19 @@
     try { return new Set(JSON.parse(localStorage.getItem(CLOSED_KEY)) || []); }
     catch (_) { return new Set(); }
   }
+  function getReleaseNARepos() {
+    try { return new Set(JSON.parse(localStorage.getItem(RELEASE_NA_KEY)) || []); }
+    catch (_) { return new Set(); }
+  }
   function _savePinned(s) { localStorage.setItem(PINNED_KEY, JSON.stringify([...s])); }
   function _saveClosed(s) { localStorage.setItem(CLOSED_KEY, JSON.stringify([...s])); }
+  function _saveReleaseNA(s) { localStorage.setItem(RELEASE_NA_KEY, JSON.stringify([...s])); }
+  function isReleaseNA(repo) { return getReleaseNARepos().has(repo.name); }
+  function toggleReleaseNA(repo) {
+    const set = getReleaseNARepos();
+    if (set.has(repo.name)) { set.delete(repo.name); } else { set.add(repo.name); }
+    _saveReleaseNA(set);
+  }
 
   // ── Notes helpers ─────────────────────────────────────────
   function getNotes() {
@@ -395,8 +407,8 @@
 
   function sortRepos(repos) {
     return repos.sort((left, right) => {
-      const leftPriority = STATUS_PRIORITY[getStatus(left)] ?? 99;
-      const rightPriority = STATUS_PRIORITY[getStatus(right)] ?? 99;
+      const leftPriority = STATUS_PRIORITY[getEffectiveStatus(left)] ?? 99;
+      const rightPriority = STATUS_PRIORITY[getEffectiveStatus(right)] ?? 99;
 
       if (leftPriority !== rightPriority) {
         return leftPriority - rightPriority;
@@ -442,7 +454,7 @@
 
   function buildRepoCard(repo, isPinned = false) {
     const card = document.createElement('article');
-    const status = getStatus(repo);
+    const status = getEffectiveStatus(repo);
     const language = repo.primary_language || 'Unknown';
     const topics = Array.isArray(repo.topics) ? repo.topics.slice(0, 4) : [];
     const description = repo.description || 'No description provided.';
@@ -817,7 +829,7 @@
     const copilot = repo.copilot_activity || {};
     const badges = [];
 
-    badges.push(buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success'));
+    badges.push(buildReleaseBadge(repo));
     badges.push(buildBadge('🤖', getCopilotLabel(copilot), hasCopilotActivity(repo) ? 'copilot' : 'neutral'));
 
     const squad = repo.squad_activity || {};
@@ -840,6 +852,42 @@
     }
 
     return badges;
+  }
+
+  function buildReleaseBadge(repo) {
+    const release = repo.releases || {};
+    const na = isReleaseNA(repo);
+
+    if (na) {
+      const badge = document.createElement('span');
+      badge.className = 'badge neutral release-na-badge';
+      badge.title = 'Click to restore release tracking';
+      badge.textContent = '🚀 Release N/A';
+      badge.addEventListener('click', () => { toggleReleaseNA(repo); renderRepos(_currentRepos); });
+      return badge;
+    }
+
+    if (!release.has_release) {
+      const wrapper = document.createElement('span');
+      wrapper.className = `badge ${needsRelease(repo) ? 'warning' : 'success'} badge-dismissible`;
+      const text = document.createElement('span');
+      text.textContent = `🚀 ${getReleaseLabel(release)}`;
+      const dismissBtn = document.createElement('button');
+      dismissBtn.className = 'badge-dismiss';
+      dismissBtn.type = 'button';
+      dismissBtn.title = 'Mark as Release N/A (not applicable for this repo)';
+      dismissBtn.setAttribute('aria-label', 'Mark release as not applicable');
+      dismissBtn.textContent = '×';
+      dismissBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleReleaseNA(repo);
+        renderRepos(_currentRepos);
+      });
+      wrapper.append(text, dismissBtn);
+      return wrapper;
+    }
+
+    return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success');
   }
 
   function buildBadge(icon, text, tone) {
@@ -979,8 +1027,17 @@
   }
 
   function needsRelease(repo) {
+    if (isReleaseNA(repo)) return false;
     const release = repo.releases || {};
     return Boolean(release.release_overdue || (!release.has_release && Number(release.commits_since_latest || 0) > 0));
+  }
+
+  function getEffectiveStatus(repo) {
+    const baseStatus = getStatus(repo);
+    if (!isReleaseNA(repo) || baseStatus !== 'needs-attention') return baseStatus;
+    const signals = Array.isArray(repo.next_steps?.signals) ? repo.next_steps.signals : [];
+    const nonReleaseSignals = signals.filter((s) => s !== 'release-overdue');
+    return nonReleaseSignals.length > 0 ? 'needs-attention' : 'active';
   }
 
   function hasCopilotActivity(repo) {

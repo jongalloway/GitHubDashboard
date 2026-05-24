@@ -662,6 +662,44 @@ html[data-theme="light"] .badge.squad {
   color: var(--squad);
 }
 
+.badge-dismissible {
+  position: relative;
+  padding-right: 1.6em;
+}
+
+.badge-dismiss {
+  position: absolute;
+  right: 0.25em;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9em;
+  line-height: 1;
+  padding: 0 0.1em;
+  opacity: 0;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+
+.badge-dismissible:hover .badge-dismiss {
+  opacity: 0.75;
+}
+
+.badge-dismiss:hover {
+  opacity: 1 !important;
+}
+
+.release-na-badge {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.release-na-badge:hover {
+  opacity: 1;
+}
+
 .badge--private {
   background: rgba(15, 23, 42, 0.65);
   border-color: rgba(148, 163, 184, 0.35);
