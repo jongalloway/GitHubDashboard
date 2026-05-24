@@ -4,7 +4,7 @@ A personal project dashboard that tracks status and next steps for your most rec
 
 **[Live Demo →](https://jongalloway.github.io/GitHubDashboard/)** *(original author's demo — fork and configure your own!)*
 
-![Dashboard Preview](docs/preview.png)
+![Dashboard Preview](docs/screenshot.png)
 
 ## Use It Yourself
 
