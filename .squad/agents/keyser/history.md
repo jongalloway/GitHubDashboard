@@ -20,7 +20,10 @@
 - Captured a new product constraint that the monitored GitHub account must come from repository configuration such as `GITHUB_USERNAME`, making the project template-friendly for any GitHub user.
 - Analyzed Squad detection approaches for the dashboard. Recommended mirroring the existing Copilot detection pattern: check `.squad/team.md` via Contents API (1 call/repo) + filter for `squad/` branch prefix in already-fetched data. MVP is ~50 lines per pipeline file. Decision documented in `.squad/decisions/inbox/keyser-squad-detection.md`.
 
-## Team Coordination (2026-05-23T09:22:49Z)
+## Learnings (2026-05-24 — Issue #15 Discussion activity)
+
+- Issue #15 (Show discussion activity per repo): Used Option A — `has_discussions` is available on the REST API repo object (already fetched), no additional API calls or GraphQL needed. Added `discussions_enabled: repo.has_discussions === true` to the data pipeline output and `buildDiscussionsBadge` in the frontend. Badge shows `💬 Discussions` with neutral tone when discussions are enabled. Approach is zero-cost in terms of API rate limits.
+
 
 Scribe consolidated team deliverables:
 - **Fenster (DevOps):** GitHub Actions pipeline complete — `update-dashboard.yml`, `scripts/fetch-data.js`, deployment ready
@@ -28,3 +31,19 @@ Scribe consolidated team deliverables:
 - **Hockney (Tester):** Test plan created — 148 test cases covering pipeline, UI, deployment, configuration
 
 All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs created for handoff tracking.
+
+## Learnings (2026-05-24)
+
+- Issue #10 (stale branches): GitHub `/branches` endpoint returns `name` + `commit.sha` but **no commit date**. Getting per-branch commit dates requires N+1 API calls — rejected as too expensive.
+- Chose total non-default branch count as a zero-cost staleness proxy. Count > 5 triggers `many-branches` signal; badge tones at warning when > 10. Documented in `.squad/decisions/inbox/keyser-branch-staleness.md`.
+- Pattern: always check whether needed data is already in a fetched array before designing a new API call. `getBranches()` returns the full list; filtering it is free.
+- PR #22 opened for issue #10.
+
+## Learnings (2026-05-24T15:30:34Z — Issue #12 Copilot agent/bot activity)
+
+- The existing `copilot_activity` already captures copilot-agent PRs well: `getPullSource` checks `author.login.includes('copilot')`, which catches `copilot-swe-agent[bot]`. The gap was general `[bot]`-suffix authors not named 'copilot'.
+- Added `isBotAuthor(login)` helper (checks `endsWith('[bot]')`) and `botPulls` computed from already-fetched `pulls` array — zero new API calls.
+- Added `bot_pr_count` to `copilot_activity` and a `'bot-pr'` signal; `last_activity_at` now includes bot PR timestamps.
+- Improved `getCopilotLabel()` output from verbose `'X branches · Y PRs · Z linked issues'` to readable `'Active (3 PRs)'` / `'No activity'`.
+- Removed accidental double-counting of draft PRs in the old label logic (copilot_open_pr_count already includes drafts).
+- PR #23 opened for issue #12.

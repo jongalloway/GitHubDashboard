@@ -224,6 +224,10 @@ function getPullSource(pull, labels = []) {
   return 'human';
 }
 
+function isBotAuthor(login) {
+  return login.toLowerCase().endsWith('[bot]');
+}
+
 function issuePriority(issue) {
   const labels = normalizeLabels(issue.labels).map((label) => label.toLowerCase());
   const ageDays = daysBetween(issue.created_at) ?? 0;
@@ -253,8 +257,24 @@ function issuePriority(issue) {
   return { score: 0, reason: null, ageDays, isUnassigned, isUnlabeled };
 }
 
-function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease }) {
+function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCount, copilotWorkReady, squadWorkReady, hasRecentActivity, hasRelease, securityAlerts, ciFailure, manyBranches }) {
   const parts = [];
+
+  if (ciFailure) {
+    parts.push('CI is failing');
+  }
+
+  const criticalCount = securityAlerts?.critical || 0;
+  const highCount = securityAlerts?.high || 0;
+  if (criticalCount > 0) {
+    parts.push(`${criticalCount} critical security alert${criticalCount === 1 ? '' : 's'}`);
+  } else if (highCount > 0) {
+    parts.push(`${highCount} high security alert${highCount === 1 ? '' : 's'}`);
+  }
+
+  if (manyBranches) {
+    parts.push('has many branches');
+  }
 
   if (releaseOverdue) {
     parts.push(hasRelease ? 'Release is overdue' : 'Recent commits have not shipped in a release');
@@ -319,6 +339,7 @@ async function getLatestRelease(fullName, defaultBranch) {
 
   return {
     latest_tag: release.tag_name || null,
+    // Note: uses release publish date; tag-only repos (no GH Releases) won't have age data
     latest_published_at: release.published_at || release.created_at || null,
     commits_since_latest: commitsSinceLatest,
     has_release: true,
@@ -359,9 +380,55 @@ async function getBranches(fullName) {
 async function checkHasReadme(fullName) {
   const data = await fetchJson(`/repos/${fullName}/readme`, {
     context: `Checking README for ${fullName}`,
-    allowStatuses: [404]
+    allowStatuses: [404, 409]
   });
   return data !== null;
+}
+
+async function getDependabotAlerts(fullName) {
+  const alerts = await paginate(`/repos/${fullName}/dependabot/alerts?state=open&per_page=100`, {
+    context: `Fetching Dependabot alerts for ${fullName}`,
+    allowStatuses: [403, 404, 451, 422]
+  });
+
+  if (!alerts || alerts.length === 0) {
+    return { total: 0, critical: 0, high: 0, medium: 0, low: 0 };
+  }
+
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const alert of alerts) {
+    const sev = (
+      alert.security_advisory?.severity ||
+      alert.security_vulnerability?.severity ||
+      'low'
+    ).toLowerCase();
+    if (sev in counts) counts[sev]++;
+  }
+
+  return { total: alerts.length, ...counts };
+}
+
+async function getLatestWorkflowRun(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/actions/runs?per_page=1`, {
+    context: `Fetching latest workflow run for ${fullName}`,
+    allowStatuses: [403, 404, 451]
+  });
+
+  if (!data || !Array.isArray(data.workflow_runs) || data.workflow_runs.length === 0) {
+    return { has_workflows: false, latest_run: null };
+  }
+
+  const run = data.workflow_runs[0];
+  return {
+    has_workflows: true,
+    latest_run: {
+      name: run.name || null,
+      status: run.status || null,
+      conclusion: run.conclusion || null,
+      updated_at: run.updated_at || null,
+      html_url: run.html_url || null
+    }
+  };
 }
 
 async function getReviewState(fullName, pullNumber) {
@@ -417,12 +484,55 @@ function buildPriorityIssues(issues) {
     .map(({ score, ...issue }) => issue);
 }
 
+async function getTrafficData(fullName) {
+  const [viewsData, clonesData] = await Promise.all([
+    fetchJson(`/repos/${fullName}/traffic/views`, {
+      context: `Fetching traffic views for ${fullName}`,
+      allowStatuses: [403, 404, 451]
+    }),
+    fetchJson(`/repos/${fullName}/traffic/clones`, {
+      context: `Fetching traffic clones for ${fullName}`,
+      allowStatuses: [403, 404, 451]
+    })
+  ]);
+
+  if (!viewsData && !clonesData) {
+    return null;
+  }
+
+  return {
+    views: { count: viewsData?.count || 0, uniques: viewsData?.uniques || 0 },
+    clones: { count: clonesData?.count || 0, uniques: clonesData?.uniques || 0 }
+  };
+}
+
+async function getCodeScanningAlerts(fullName) {
+  const alerts = await paginate(`/repos/${fullName}/code-scanning/alerts?state=open&per_page=100`, {
+    context: `Fetching code scanning alerts for ${fullName}`,
+    allowStatuses: [403, 404, 451, 422]
+  });
+
+  if (!alerts || alerts.length === 0) {
+    return { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 };
+  }
+
+  // Code scanning uses different severity terms than Dependabot
+  // severity: critical, high, medium, low, warning, note, error
+  const counts = { critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 };
+  for (const alert of alerts) {
+    const sev = (alert.rule?.severity || alert.most_recent_instance?.message?.severity || '').toLowerCase();
+    if (sev in counts) counts[sev]++;
+  }
+
+  return { total: alerts.length, ...counts };
+}
+
 async function buildRepoRecord(repo) {
   const fullName = repo.full_name;
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, hasReadme] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts, trafficData, hasReadme] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -432,6 +542,10 @@ async function buildRepoRecord(repo) {
         context: `Checking Squad presence for ${fullName}`,
         allowStatuses: [404]
       }),
+      getDependabotAlerts(fullName),
+      getLatestWorkflowRun(fullName),
+      getCodeScanningAlerts(fullName),
+      getTrafficData(fullName),
       checkHasReadme(fullName)
     ]);
 
@@ -507,7 +621,13 @@ async function buildRepoRecord(repo) {
       .map((branch) => branch.name)
       .filter((branchName) => branchName.toLowerCase().startsWith('squad/'));
 
+    // Count non-default branches as a proxy for potential staleness (no N+1 calls needed)
+    const nonDefaultBranchCount = branches.filter((b) => b.name !== repo.default_branch).length;
+
     const copilotPulls = pulls.filter((pull) => pullSources.get(pull.number) === 'copilot');
+    const botPulls = pulls.filter(
+      (pull) => isBotAuthor(pull.user?.login || '') && pullSources.get(pull.number) !== 'copilot'
+    );
     const copilotIssues = issueRecords.filter((issue) =>
       normalizeLabels(issue.labels).some((label) => label.toLowerCase().includes('copilot'))
     );
@@ -533,6 +653,9 @@ async function buildRepoRecord(repo) {
     }
     if (copilotIssues.length > 0) {
       copilotSignals.push('copilot-label');
+    }
+    if (botPulls.length > 0) {
+      copilotSignals.push('bot-pr');
     }
 
     const hasRelease = releaseInfo.has_release;
@@ -564,6 +687,25 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    if (nonDefaultBranchCount > 5) {
+      signals.push('many-branches');
+    }
+
+    const hasCodeAlerts = (codeScanAlerts?.critical || 0) + (codeScanAlerts?.high || 0) + (codeScanAlerts?.error || 0) > 0;
+    if (hasCodeAlerts) {
+      signals.push('code-alerts');
+    }
+
+    const hasSecurityAlerts = (securityAlerts?.critical || 0) + (securityAlerts?.high || 0) > 0;
+    if (hasSecurityAlerts) {
+      signals.push('security-alerts');
+    }
+
+    const ciFailure = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(workflowStatus?.latest_run?.conclusion);
+    if (ciFailure) {
+      signals.push('ci-failing');
+    }
+
     const recentActivityAt = maxTimestamp(
       repo.pushed_at,
       lastCommitDate,
@@ -587,6 +729,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: openIssuesCount,
       open_pull_requests_count: pulls.length,
       last_commit_date: lastCommitDate,
+      non_default_branch_count: nonDefaultBranchCount,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
@@ -594,16 +737,20 @@ async function buildRepoRecord(repo) {
       license: repo.license?.spdx_id || null,
       has_readme: hasReadme,
       releases: releaseInfo,
+      security_alerts: securityAlerts,
+      workflow_status: workflowStatus,
       copilot_activity: {
         copilot_branch_count: copilotBranches.length,
         copilot_branches: copilotBranches,
         copilot_open_pr_count: copilotPulls.length,
         copilot_draft_pr_count: copilotPulls.filter((pull) => pull.draft).length,
         copilot_labeled_issue_count: copilotIssues.length,
+        bot_pr_count: botPulls.length,
         last_activity_at: maxTimestamp(
           copilotBranchActivity,
           copilotPulls.map((pull) => pull.updated_at),
-          copilotIssues.map((issue) => issue.updated_at)
+          copilotIssues.map((issue) => issue.updated_at),
+          botPulls.map((pull) => pull.updated_at)
         ),
         signals: copilotSignals
       },
@@ -614,6 +761,7 @@ async function buildRepoRecord(repo) {
         squad_open_pr_count: squadPulls.length,
         signals: squadSignals
       },
+      code_scanning: codeScanAlerts,
       priority_issues: priorityIssues,
       pending_reviews: {
         count: pendingReviewItems.length,
@@ -629,9 +777,14 @@ async function buildRepoRecord(repo) {
           copilotWorkReady,
           squadWorkReady,
           hasRecentActivity,
-          hasRelease
+          hasRelease,
+          securityAlerts,
+          ciFailure,
+          manyBranches: nonDefaultBranchCount > 5
         })
-      }
+      },
+      discussions_enabled: repo.has_discussions === true,
+      traffic: trafficData
     };
   } catch (error) {
     warn(`Falling back to partial data for ${fullName}: ${error.message}`);
@@ -649,6 +802,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: 0,
       open_pull_requests_count: 0,
       last_commit_date: null,
+      non_default_branch_count: 0,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
@@ -662,12 +816,15 @@ async function buildRepoRecord(repo) {
         has_release: false,
         release_overdue: false
       },
+      security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+      workflow_status: { has_workflows: false, latest_run: null },
       copilot_activity: {
         copilot_branch_count: 0,
         copilot_branches: [],
         copilot_open_pr_count: 0,
         copilot_draft_pr_count: 0,
         copilot_labeled_issue_count: 0,
+        bot_pr_count: 0,
         last_activity_at: null,
         signals: []
       },
@@ -678,6 +835,7 @@ async function buildRepoRecord(repo) {
         squad_open_pr_count: 0,
         signals: []
       },
+      code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
       priority_issues: [],
       pending_reviews: {
         count: 0,
@@ -689,7 +847,9 @@ async function buildRepoRecord(repo) {
         summary: hasRecentActivity
           ? 'Repository is active, but some GitHub API data could not be fetched.'
           : 'Repository is quiet, and some GitHub API data could not be fetched.'
-      }
+      },
+      discussions_enabled: repo.has_discussions === true,
+      traffic: null
     };
   }
 }
