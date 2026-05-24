@@ -47,3 +47,13 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Improved `getCopilotLabel()` output from verbose `'X branches · Y PRs · Z linked issues'` to readable `'Active (3 PRs)'` / `'No activity'`.
 - Removed accidental double-counting of draft PRs in the old label logic (copilot_open_pr_count already includes drafts).
 - PR #23 opened for issue #12.
+
+## Learnings (2026-05-24 — PRs #18–#26 batch merge)
+
+- Sequential PR merges into main accumulate conflicts in `scripts/fetch-data.js` and `js/app.js` — each merge must keep ALL prior additions or later PRs break. Promise.all destructuring grows by one entry per feature PR; track carefully.
+- When a PR branch uses `getTrafficViews` (flat shape) but the Copilot fix requires both views and clones, restructure to `getTrafficData` returning `{ views: { count, uniques }, clones: { count, uniques } }` — the frontend badge must be updated to match.
+- `allowStatuses: [404]` on `checkHasReadme` should also include `409` (Conflict — repo is empty); caught via Copilot inline review.
+- CSS `.badge.danger` (red) cannot use `--danger` CSS variable since that's orange in this theme; use hardcoded `rgba(239,68,68,…)` / `#fca5a5` / `#dc2626` instead.
+- When merging PRs that touch the same branch-level history docs, git can auto-merge them cleanly (no conflict) — only `fetch-data.js` and `app.js` reliably conflict.
+- `github-client.js` (browser client) and `scripts/fetch-data.js` (server pipeline) must stay in structural parity: after merging new fields server-side, immediately add matching stubs client-side.
+- All 9 PRs (#18–#26) merged into main in order. PRs auto-closed on GitHub upon merge.
