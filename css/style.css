@@ -72,6 +72,10 @@ html[data-theme="light"] .badge.warning {
   color: var(--danger);
 }
 
+html[data-theme="light"] .badge.danger {
+  color: #dc2626;
+}
+
 html[data-theme="light"] .badge.success {
   color: var(--success);
 }
@@ -638,6 +642,12 @@ h3 {
   background: var(--danger-soft);
   border-color: rgba(249, 115, 22, 0.45);
   color: #fed7aa;
+}
+
+.badge.danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
 }
 
 .badge.success {

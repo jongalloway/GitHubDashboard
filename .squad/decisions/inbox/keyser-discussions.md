@@ -6,7 +6,7 @@
 
 ## Context
 
-Issue #15 requests surfacing whether GitHub Discussions are enabled on a repo, with a flag for unanswered discussions. GitHub Discussions have no REST API — only a GraphQL endpoint.
+Issue #15 requests surfacing whether GitHub Discussions are enabled on a repo, with a flag for unanswered discussions. GitHub Discussions have no REST API — only a GraphQL endpoint. The REST repo list payload doesn't include discussion counts; fetching unanswered discussion counts would require additional per-repo API calls.
 
 ## Decision
 

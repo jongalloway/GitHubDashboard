@@ -824,6 +824,19 @@
     return panel;
   }
 
+  function buildTrafficBadge(repo) {
+    if (!repo.traffic) return null;
+    const views = repo.traffic.views || {};
+    const clones = repo.traffic.clones || {};
+    const uniques = views.uniques || 0;
+    const viewCount = views.count || 0;
+    const cloneCount = clones.count || 0;
+    const cloneUniques = clones.uniques || 0;
+    const badge = buildBadge('👁️', `${uniques} unique visitors`, 'neutral');
+    badge.title = `${viewCount} views, ${uniques} unique visitors, ${cloneCount} clones (${cloneUniques} unique) — last 14 days`;
+    return badge;
+  }
+
   function buildStatusBadges(repo) {
     const release = repo.releases || {};
     const copilot = repo.copilot_activity || {};
@@ -845,6 +858,32 @@
 
     const discussionsBadge = buildDiscussionsBadge(repo);
     if (discussionsBadge) badges.push(discussionsBadge);
+
+    const trafficBadge = buildTrafficBadge(repo);
+    if (trafficBadge) badges.push(trafficBadge);
+
+    const branchBadge = buildBranchBadge(repo);
+    if (branchBadge) badges.push(branchBadge);
+
+    const activityBadge = buildActivityBadge(repo);
+    if (activityBadge) {
+      badges.push(activityBadge);
+    }
+
+    const securityBadge = buildSecurityBadge(repo);
+    if (securityBadge) {
+      badges.push(securityBadge);
+    }
+
+    const codeScanBadge = buildCodeScanBadge(repo);
+    if (codeScanBadge) {
+      badges.push(codeScanBadge);
+    }
+
+    const workflowBadge = buildWorkflowBadge(repo);
+    if (workflowBadge) {
+      badges.push(workflowBadge);
+    }
 
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
@@ -898,10 +937,127 @@
     return buildBadge('💬', 'Discussions', 'neutral');
   }
 
+  function buildBranchBadge(repo) {
+    const count = repo.non_default_branch_count;
+    if (!count || count <= 1) return null;
+    const tone = count > 10 ? 'warning' : 'neutral';
+    return buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone);
+  }
+
+  function buildCodeScanBadge(repo) {
+    const cs = repo.code_scanning;
+    if (!cs || cs.total === 0) return null;
+
+    const critical = cs.critical || 0;
+    const high = cs.high || 0;
+    const error = cs.error || 0;
+    const total = cs.total || 0;
+
+    let text;
+    let tone;
+    if (critical > 0) {
+      text = `${critical} critical`;
+      tone = 'danger';
+    } else if (error > 0) {
+      text = `${error} error`;
+      tone = 'danger';
+    } else if (high > 0) {
+      text = `${high} high`;
+      tone = 'warning';
+    } else {
+      text = `${total} alerts`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔍', text, tone);
+  }
+
   function buildBadge(icon, text, tone) {
     const badge = document.createElement('span');
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
+    return badge;
+  }
+
+  function buildActivityBadge(repo) {
+    if (!repo.last_commit_date) return null;
+
+    const date = new Date(repo.last_commit_date);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+    const text = formatRelativeDate(repo.last_commit_date) || 'today';
+
+    let tone;
+    if (days <= 30) {
+      tone = 'success';
+    } else if (days <= 90) {
+      tone = 'neutral';
+    } else if (days <= 365) {
+      tone = 'warning';
+    } else {
+      tone = 'danger';
+    }
+
+    const badge = buildBadge('🕐', text, tone);
+    badge.title = formatAbsoluteDate(repo.last_commit_date);
+    return badge;
+  }
+
+  function buildSecurityBadge(repo) {
+    const alerts = repo.security_alerts;
+    if (!alerts || alerts.total === 0) return null;
+
+    const critical = alerts.critical || 0;
+    const high = alerts.high || 0;
+
+    let label, tone;
+    if (critical > 0) {
+      label = `${critical} critical`;
+      tone = 'danger';
+    } else if (high > 0) {
+      label = `${high} high`;
+      tone = 'warning';
+    } else {
+      label = `${alerts.total} alert${alerts.total === 1 ? '' : 's'}`;
+      tone = 'neutral';
+    }
+
+    return buildBadge('🔒', label, tone);
+  }
+
+  function buildWorkflowBadge(repo) {
+    if (!repo.workflow_status?.has_workflows) return null;
+
+    const run = repo.workflow_status.latest_run;
+    const status = run?.status || null;
+    const conclusion = run?.conclusion || null;
+
+    let icon, text, tone;
+    if (conclusion === 'success') {
+      icon = '✅'; text = 'CI passing'; tone = 'success';
+    } else if (['failure', 'timed_out', 'startup_failure', 'action_required'].includes(conclusion)) {
+      icon = '❌'; text = 'CI failing'; tone = 'danger';
+    } else if (conclusion === 'cancelled') {
+      icon = '⚫'; text = 'CI cancelled'; tone = 'neutral';
+    } else if (status === 'in_progress' || status === 'queued' || conclusion === 'in_progress') {
+      icon = '⏳'; text = 'CI running'; tone = 'neutral';
+    } else {
+      icon = '⚪'; text = 'CI unknown'; tone = 'neutral';
+    }
+
+    const badge = buildBadge(icon, text, tone);
+
+    if (run?.html_url) {
+      const link = document.createElement('a');
+      link.href = run.html_url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.className = 'badge-link';
+      link.appendChild(badge);
+      return link;
+    }
+
     return badge;
   }
 
@@ -1056,6 +1212,7 @@
       Number(activity.copilot_open_pr_count || 0) > 0 ||
       Number(activity.copilot_draft_pr_count || 0) > 0 ||
       Number(activity.copilot_labeled_issue_count || 0) > 0 ||
+      Number(activity.bot_pr_count || 0) > 0 ||
       signalCount > 0
     );
   }
@@ -1073,15 +1230,21 @@
 
   function getCopilotLabel(activity) {
     const branches = Number(activity.copilot_branch_count || 0);
-    const prs = Number(activity.copilot_open_pr_count || 0) + Number(activity.copilot_draft_pr_count || 0);
+    const copilotPrs = Number(activity.copilot_open_pr_count || 0);
+    const botPrs = Number(activity.bot_pr_count || 0);
     const issues = Number(activity.copilot_labeled_issue_count || 0);
-    const total = branches + prs + issues;
+    const totalPrs = copilotPrs + botPrs;
+    const total = branches + totalPrs + issues;
 
     if (!total) {
-      return 'No Copilot signals';
+      return 'No activity';
     }
 
-    return `${branches} branches · ${prs} PRs · ${issues} linked issues`;
+    const parts = [];
+    if (totalPrs > 0) parts.push(`${totalPrs} PR${totalPrs === 1 ? '' : 's'}`);
+    if (branches > 0) parts.push(`${branches} branch${branches === 1 ? '' : 'es'}`);
+    if (issues > 0 && parts.length === 0) parts.push(`${issues} issue${issues === 1 ? '' : 's'}`);
+    return `Active (${parts.join(', ')})`;
   }
 
   function getIssueLabel(repo) {
