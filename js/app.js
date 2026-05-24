@@ -856,6 +856,9 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const discussionsBadge = buildDiscussionsBadge(repo);
+    if (discussionsBadge) badges.push(discussionsBadge);
+
     const trafficBadge = buildTrafficBadge(repo);
     if (trafficBadge) badges.push(trafficBadge);
 
@@ -927,6 +930,11 @@
     }
 
     return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success');
+  }
+
+  function buildDiscussionsBadge(repo) {
+    if (!repo.discussions_enabled) return null;
+    return buildBadge('💬', 'Discussions', 'neutral');
   }
 
   function buildBranchBadge(repo) {

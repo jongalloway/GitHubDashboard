@@ -771,6 +771,7 @@ async function buildRepoRecord(repo) {
           manyBranches: nonDefaultBranchCount > 5
         })
       },
+      discussions_enabled: repo.has_discussions === true,
       traffic: trafficData
     };
   } catch (error) {
@@ -833,6 +834,7 @@ async function buildRepoRecord(repo) {
           ? 'Repository is active, but some GitHub API data could not be fetched.'
           : 'Repository is quiet, and some GitHub API data could not be fetched.'
       },
+      discussions_enabled: repo.has_discussions === true,
       traffic: null
     };
   }
