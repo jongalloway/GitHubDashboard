@@ -1105,3 +1105,32 @@ code {
     max-width: 100%;
   }
 }
+
+/* ── Footer ──────────────────────────────────────────────── */
+
+.page-footer {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+}
+
+.footer-repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  transition: color 0.15s;
+}
+
+.footer-repo-link:hover {
+  color: var(--accent);
+}
+
+.footer-github-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
