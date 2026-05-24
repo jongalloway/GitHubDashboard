@@ -55,9 +55,11 @@
   // Module-level auth state
   let configuredOwner = null;
 
-  // ── Pin / Close state ─────────────────────────────────────
+  // ── Pin / Close / Notes state ─────────────────────────────
   const PINNED_KEY = 'ghd-pinned';
   const CLOSED_KEY = 'ghd-closed';
+  const NOTES_KEY = 'ghd-notes';
+  const NOTES_OPEN_KEY = 'ghd-notes-open';
   let _currentRepos = null;
 
   function getPinnedRepos() {
@@ -70,6 +72,27 @@
   }
   function _savePinned(s) { localStorage.setItem(PINNED_KEY, JSON.stringify([...s])); }
   function _saveClosed(s) { localStorage.setItem(CLOSED_KEY, JSON.stringify([...s])); }
+
+  // ── Notes helpers ─────────────────────────────────────────
+  function getNotes() {
+    try { return JSON.parse(localStorage.getItem(NOTES_KEY)) || {}; }
+    catch (_) { return {}; }
+  }
+  function getNote(repoName) { return getNotes()[repoName] || ''; }
+  function saveNote(repoName, text) {
+    const notes = getNotes();
+    if (text.trim() === '') { delete notes[repoName]; } else { notes[repoName] = text; }
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  }
+  function getNotesOpen() {
+    try { return new Set(JSON.parse(localStorage.getItem(NOTES_OPEN_KEY)) || []); }
+    catch (_) { return new Set(); }
+  }
+  function _setNoteOpen(repoName, open) {
+    const s = getNotesOpen();
+    open ? s.add(repoName) : s.delete(repoName);
+    localStorage.setItem(NOTES_OPEN_KEY, JSON.stringify([...s]));
+  }
 
   function _togglePin(repoName) {
     const pinned = getPinnedRepos();
@@ -452,7 +475,7 @@
     grid.appendChild(buildInfoTile('Priority issues', `${priorityIssues.length} highlighted`, renderIssueList(priorityIssues, 'No priority issues surfaced.')));
     grid.appendChild(buildInfoTile('Pending review PRs', `${getPendingReviewCount(repo)} awaiting review`, renderReviewList(reviewItems, 'No PRs waiting for review.')));
 
-    card.append(header, badges, grid);
+    card.append(header, badges, grid, buildNotesPanel(repo));
     return card;
   }
 
@@ -468,6 +491,22 @@
     pinBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-1.219.902-1.414.707-.195-.195.512-1.22.707-1.414l3.182-3.182-2.828-2.829a.5.5 0 0 1 0-.707c.688-.688 1.673-.767 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133a2.772 2.772 0 0 1-.04-.461c0-.43.108-1.022.589-1.503a.5.5 0 0 1 .353-.146z"/></svg>';
     pinBtn.addEventListener('click', (e) => { e.preventDefault(); _togglePin(repo.name); });
 
+    const noteBtn = document.createElement('button');
+    noteBtn.className = `card-btn note-btn${getNote(repo.name).trim() !== '' ? ' active' : ''}`;
+    noteBtn.type = 'button';
+    noteBtn.title = 'Toggle notes';
+    noteBtn.setAttribute('aria-label', 'Toggle notes panel');
+    noteBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z"/></svg>';
+    noteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const card = noteBtn.closest('.repo-card');
+      const panel = card?.querySelector('.notes-panel');
+      if (!panel) return;
+      const isHidden = panel.classList.contains('notes-panel--hidden');
+      panel.classList.toggle('notes-panel--hidden', !isHidden);
+      _setNoteOpen(repo.name, isHidden);
+    });
+
     const closeBtn = document.createElement('button');
     closeBtn.className = 'card-btn close-btn';
     closeBtn.type = 'button';
@@ -476,8 +515,56 @@
     closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>';
     closeBtn.addEventListener('click', (e) => { e.preventDefault(); _closeRepo(repo.name); });
 
-    actions.append(pinBtn, closeBtn);
+    actions.append(pinBtn, noteBtn, closeBtn);
     return actions;
+  }
+
+  function buildNotesPanel(repo) {
+    const isOpen = getNotesOpen().has(repo.name);
+    const currentNote = getNote(repo.name);
+    const hasNote = currentNote.trim() !== '';
+
+    const panel = document.createElement('div');
+    panel.className = `notes-panel${isOpen ? '' : ' notes-panel--hidden'}`;
+    panel.dataset.repo = repo.name;
+
+    const header = document.createElement('div');
+    header.className = 'notes-panel-header';
+
+    const label = document.createElement('span');
+    label.className = 'notes-panel-label';
+    label.textContent = 'Notes';
+
+    const hideBtn = document.createElement('button');
+    hideBtn.className = 'notes-hide-btn';
+    hideBtn.type = 'button';
+    hideBtn.title = 'Hide notes';
+    hideBtn.setAttribute('aria-label', 'Hide notes panel');
+    hideBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>';
+    hideBtn.addEventListener('click', () => {
+      panel.classList.add('notes-panel--hidden');
+      _setNoteOpen(repo.name, false);
+      // update note button state
+      const card = panel.closest('.repo-card');
+      if (card) card.querySelector('.note-btn')?.classList.toggle('active', getNote(repo.name).trim() !== '');
+    });
+
+    header.append(label, hideBtn);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'notes-textarea';
+    textarea.placeholder = 'Add notes, todos, next steps…';
+    textarea.value = currentNote;
+    textarea.rows = 3;
+    textarea.addEventListener('input', () => {
+      saveNote(repo.name, textarea.value);
+      // keep note button lit if there's content
+      const card = panel.closest('.repo-card');
+      if (card) card.querySelector('.note-btn')?.classList.toggle('active', textarea.value.trim() !== '');
+    });
+
+    panel.append(header, textarea);
+    return panel;
   }
 
   function buildClosedSection(closedRepos) {

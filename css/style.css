@@ -460,6 +460,82 @@ h3 {
   color: var(--accent);
 }
 
+/* ── Notes panel ─────────────────────────────────────────── */
+.notes-panel {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 0.75rem 0.6rem;
+  background: var(--bg-elevated);
+}
+
+.notes-panel--hidden {
+  display: none;
+}
+
+.notes-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.notes-panel-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.notes-hide-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+
+.notes-hide-btn:hover {
+  background: var(--bg-elevated-strong);
+  color: var(--text);
+}
+
+.notes-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.12s;
+}
+
+.notes-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.note-btn.active {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.repo-card:hover .card-actions,
+.repo-card.is-pinned .card-actions,
+.repo-card:has(.notes-panel:not(.notes-panel--hidden)) .card-actions {
+  opacity: 1;
+}
+
 .repo-title-group {
   min-width: 0;
 }
