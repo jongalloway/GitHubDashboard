@@ -443,6 +443,15 @@ window.GHD = window.GHD || {};
           count: pendingReviewItems.length,
           items: pendingReviewItems
         },
+        non_default_branch_count: branches.filter((b) => b.name !== repo.default_branch).length,
+        is_private: repo.private === true,
+        workflow_status: { has_workflows: false, latest_run: null },
+        security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
+        traffic: null,
+        discussions_enabled: repo.has_discussions === true,
+        license: repo.license?.spdx_id || null,
+        has_readme: null,
         next_steps: {
           status: nextStepStatus,
           signals: nextStepSignals,
@@ -498,6 +507,15 @@ window.GHD = window.GHD || {};
           squad_open_pr_count: 0,
           signals: []
         },
+        non_default_branch_count: 0,
+        is_private: repo.private === true,
+        workflow_status: { has_workflows: false, latest_run: null },
+        security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
+        traffic: null,
+        discussions_enabled: repo.has_discussions === true,
+        license: repo.license?.spdx_id || null,
+        has_readme: null,
         priority_issues: [],
         pending_reviews: { count: 0, items: [] },
         next_steps: {
