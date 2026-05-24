@@ -339,6 +339,7 @@ async function getLatestRelease(fullName, defaultBranch) {
 
   return {
     latest_tag: release.tag_name || null,
+    // Note: uses release publish date; tag-only repos (no GH Releases) won't have age data
     latest_published_at: release.published_at || release.created_at || null,
     commits_since_latest: commitsSinceLatest,
     has_release: true,
@@ -374,6 +375,14 @@ async function getBranches(fullName) {
     context: `Fetching branches for ${fullName}`,
     allowStatuses: [404, 409]
   });
+}
+
+async function checkHasReadme(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/readme`, {
+    context: `Checking README for ${fullName}`,
+    allowStatuses: [404, 409]
+  });
+  return data !== null;
 }
 
 async function getDependabotAlerts(fullName) {
@@ -523,7 +532,7 @@ async function buildRepoRecord(repo) {
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts, trafficData] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts, trafficData, hasReadme] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -536,7 +545,8 @@ async function buildRepoRecord(repo) {
       getDependabotAlerts(fullName),
       getLatestWorkflowRun(fullName),
       getCodeScanningAlerts(fullName),
-      getTrafficData(fullName)
+      getTrafficData(fullName),
+      checkHasReadme(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -724,6 +734,8 @@ async function buildRepoRecord(repo) {
       is_archived: repo.archived,
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
+      license: repo.license?.spdx_id || null,
+      has_readme: hasReadme,
       releases: releaseInfo,
       security_alerts: securityAlerts,
       workflow_status: workflowStatus,
@@ -795,6 +807,8 @@ async function buildRepoRecord(repo) {
       is_archived: repo.archived,
       is_private: repo.private === true,
       topics: Array.isArray(repo.topics) ? repo.topics : [],
+      license: repo.license?.spdx_id || null,
+      has_readme: null,
       releases: {
         latest_tag: null,
         latest_published_at: null,

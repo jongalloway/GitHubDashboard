@@ -856,6 +856,9 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const licenseBadge = buildLicenseBadge(repo);
+    if (licenseBadge) badges.push(licenseBadge);
+
     const discussionsBadge = buildDiscussionsBadge(repo);
     if (discussionsBadge) badges.push(discussionsBadge);
 
@@ -977,6 +980,19 @@
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
     return badge;
+  }
+
+  function buildLicenseBadge(repo) {
+    if (repo.license === undefined) return null;
+
+    const isActive = !repo.is_archived && !repo.is_fork;
+    const licenseLabel = repo.license || 'No license';
+    const readmeMissing = repo.has_readme === false;
+
+    const label = readmeMissing ? `${licenseLabel} · No README` : licenseLabel;
+    const isWarning = isActive && (!repo.license || readmeMissing);
+
+    return buildBadge('📄', label, isWarning ? 'warning' : 'neutral');
   }
 
   function buildActivityBadge(repo) {
@@ -1225,7 +1241,8 @@
 
     const tag = release.latest_tag || 'Latest release';
     const ahead = Number(release.commits_since_latest || 0);
-    return `${tag} · ${ahead} commits ahead`;
+    const age = release.latest_published_at ? formatRelativeDate(release.latest_published_at) : null;
+    return age ? `${tag} · ${ahead} commits ahead · ${age}` : `${tag} · ${ahead} commits ahead`;
   }
 
   function getCopilotLabel(activity) {

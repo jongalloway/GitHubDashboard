@@ -28,6 +28,12 @@
 - 2026-05-24T15:30:34-07:00: Security badge uses 🔒 icon: `danger` tone for critical, `warning` for high-only, `neutral` for medium/low. Badge hidden when total === 0. `summarizeNextSteps` now surfaces critical/high counts at the top of the summary string (security issues reported before release/review signals).
 - 2026-05-24T15:30:34-07:00: On main branch (squad/9-dependabot-alerts), the Promise.all in `buildRepoRecord` did not yet include `workflowStatus` (that's #8's PR, not merged yet). Added `securityAlerts` as the 7th item — no conflicts with #8's changes.
 
+- 2026-05-24T15:30:34-07:00: Traffic badge added via `getTrafficViews()` in `fetch-data.js` using `/repos/{owner}/{repo}/traffic/views`. Returns null on 403/404/451 (no push access). `buildTrafficBadge()` in `app.js` shows 👁️ unique visitor count with tooltip; hidden entirely when `repo.traffic` is null — no "No data" fallback. Traffic is informational only, no needs-attention signal.
+- 2026-05-24T15:30:34-07:00: Pattern confirmed: add new optional API calls to the `Promise.all` in `buildRepoRecord` and always provide `null` fallback in both the success record and the catch-block fallback. Badge functions should return `null` for absent data and be filtered out at the `buildStatusBadges` call site.
+
+- 2026-05-24T15:30:34-07:00: License/README health badge (#16) added via `buildLicenseBadge()`. License SPDX comes from existing `repo.license.spdx_id` (zero extra API cost). README presence uses `checkHasReadme()` which calls `GET /repos/{owner}/{repo}/readme` with `allowStatuses:[404]` — returns `true`/`false`. Badge shows warning tone only for active non-fork repos missing either field. Both `license` and `has_readme` fields added to the success and fallback records in `buildRepoRecord`.
+- 2026-05-24T15:30:34-07:00: Tag/release freshness (#17) covered by extending existing `getReleaseLabel()` to append relative age from `latest_published_at` (e.g. `v1.2.3 · 4 commits ahead · 3 weeks ago`). No new badge created — genuinely additive to existing release badge with zero new API calls.
+
 ## Team Coordination (2026-05-23T09:22:49Z)
 
 Scribe consolidated team deliverables:
