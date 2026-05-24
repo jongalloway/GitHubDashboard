@@ -843,6 +843,9 @@
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
 
+    const branchBadge = buildBranchBadge(repo);
+    if (branchBadge) badges.push(branchBadge);
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -888,6 +891,13 @@
     }
 
     return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success');
+  }
+
+  function buildBranchBadge(repo) {
+    const count = repo.branch_count;
+    if (!count || count <= 1) return null;
+    const tone = count > 10 ? 'warning' : 'neutral';
+    return buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone);
   }
 
   function buildBadge(icon, text, tone) {

@@ -498,6 +498,9 @@ async function buildRepoRecord(repo) {
       .map((branch) => branch.name)
       .filter((branchName) => branchName.toLowerCase().startsWith('squad/'));
 
+    // Count non-default branches as a proxy for potential staleness (no N+1 calls needed)
+    const nonDefaultBranchCount = branches.filter((b) => b.name !== repo.default_branch).length;
+
     const copilotPulls = pulls.filter((pull) => pullSources.get(pull.number) === 'copilot');
     const copilotIssues = issueRecords.filter((issue) =>
       normalizeLabels(issue.labels).some((label) => label.toLowerCase().includes('copilot'))
@@ -555,6 +558,10 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    if (nonDefaultBranchCount > 5) {
+      signals.push('many-branches');
+    }
+
     const recentActivityAt = maxTimestamp(
       repo.pushed_at,
       lastCommitDate,
@@ -578,6 +585,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: openIssuesCount,
       open_pull_requests_count: pulls.length,
       last_commit_date: lastCommitDate,
+      branch_count: nonDefaultBranchCount,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
@@ -638,6 +646,7 @@ async function buildRepoRecord(repo) {
       open_issues_count: 0,
       open_pull_requests_count: 0,
       last_commit_date: null,
+      branch_count: 0,
       is_fork: repo.fork,
       is_archived: repo.archived,
       is_private: repo.private === true,
