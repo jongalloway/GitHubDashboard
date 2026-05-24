@@ -466,12 +466,33 @@ function buildPriorityIssues(issues) {
     .map(({ score, ...issue }) => issue);
 }
 
+async function getCodeScanningAlerts(fullName) {
+  const alerts = await paginate(`/repos/${fullName}/code-scanning/alerts?state=open&per_page=100`, {
+    context: `Fetching code scanning alerts for ${fullName}`,
+    allowStatuses: [403, 404, 451, 422]
+  });
+
+  if (!alerts || alerts.length === 0) {
+    return { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 };
+  }
+
+  // Code scanning uses different severity terms than Dependabot
+  // severity: critical, high, medium, low, warning, note, error
+  const counts = { critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 };
+  for (const alert of alerts) {
+    const sev = (alert.rule?.severity || alert.most_recent_instance?.message?.severity || '').toLowerCase();
+    if (sev in counts) counts[sev]++;
+  }
+
+  return { total: alerts.length, ...counts };
+}
+
 async function buildRepoRecord(repo) {
   const fullName = repo.full_name;
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, securityAlerts, workflowStatus, codeScanAlerts] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -482,7 +503,8 @@ async function buildRepoRecord(repo) {
         allowStatuses: [404]
       }),
       getDependabotAlerts(fullName),
-      getLatestWorkflowRun(fullName)
+      getLatestWorkflowRun(fullName),
+      getCodeScanningAlerts(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -614,6 +636,11 @@ async function buildRepoRecord(repo) {
       signals.push('squad-work-ready');
     }
 
+    const hasCodeAlerts = (codeScanAlerts?.critical || 0) + (codeScanAlerts?.high || 0) + (codeScanAlerts?.error || 0) > 0;
+    if (hasCodeAlerts) {
+      signals.push('code-alerts');
+    }
+
     const hasSecurityAlerts = (securityAlerts?.critical || 0) + (securityAlerts?.high || 0) > 0;
     if (hasSecurityAlerts) {
       signals.push('security-alerts');
@@ -674,6 +701,7 @@ async function buildRepoRecord(repo) {
         squad_open_pr_count: squadPulls.length,
         signals: squadSignals
       },
+      code_scanning: codeScanAlerts,
       priority_issues: priorityIssues,
       pending_reviews: {
         count: pendingReviewItems.length,
@@ -740,6 +768,7 @@ async function buildRepoRecord(repo) {
         squad_open_pr_count: 0,
         signals: []
       },
+      code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
       priority_issues: [],
       pending_reviews: {
         count: 0,

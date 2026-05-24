@@ -8,6 +8,10 @@
 
 ## Learnings
 
+- 2026-05-24T15:30:34-07:00: Code scanning badge (Issue #14) added via `getCodeScanningAlerts()` in `fetch-data.js` and `buildCodeScanBadge()` in `app.js`. The code-scanning API returns 403 for repos without CodeQL enabled — handled via `allowStatuses: [403, 404, 451, 422]` in `paginate()`. Severity priority for badge text: critical → error → high → total; tones: danger for critical/error, warning for high, neutral for medium/low. Signal `code-alerts` fires when `critical + high + error > 0`, pushing to needs-attention. Null-safe via `?? 0` / `|| 0` guards throughout.
+
+- 2026-05-24T15:30:34-07:00: Activity badge (Issue #11) added to `buildStatusBadges` via new `buildActivityBadge(repo)` function. Returns null when `last_commit_date` is absent or unparseable — caller filters with `if (activityBadge)` pattern matching `buildSecurityBadge`. Compact time text (today/Nd ago/Nw ago/Nmo ago/Ny ago) is built inline rather than reusing `formatRelativeDate` (which only goes to weeks and returns verbose "N weeks ago" strings). Full ISO date shown as `title` tooltip via `formatAbsoluteDate`. Color tones: success ≤30d, neutral 31–90d, warning 91–365d, danger >365d.
+
 - 2026-05-23T02:22:49-07:00: Phase 2 UI ships as a GitHub Pages-friendly static bundle with `index.html`, `css/style.css`, `js/app.js`, and previewable sample data in `data/dashboard.json`.
 - 2026-05-23T02:22:49-07:00: The dashboard sorts repos by `next_steps.status`, highlights Copilot-linked PRs separately, and treats the JSON data file as the only runtime dependency.
 - 2026-05-23T03:38:13-07:00: Private auth system implemented via GitHub App Device Flow. Three new JS files: `js/auth.js` (session manager), `js/cache.js` (localStorage private cache), `js/github-client.js` (browser fetch pipeline). All use `window.GHD` namespace; IIFEs only — no ES modules.
