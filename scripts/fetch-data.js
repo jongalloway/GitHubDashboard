@@ -620,7 +620,8 @@ async function buildRepoRecord(repo) {
           hasRecentActivity,
           hasRelease
         })
-      }
+      },
+      discussions_enabled: repo.has_discussions === true
     };
   } catch (error) {
     warn(`Falling back to partial data for ${fullName}: ${error.message}`);
@@ -676,7 +677,8 @@ async function buildRepoRecord(repo) {
         summary: hasRecentActivity
           ? 'Repository is active, but some GitHub API data could not be fetched.'
           : 'Repository is quiet, and some GitHub API data could not be fetched.'
-      }
+      },
+      discussions_enabled: repo.has_discussions === true
     };
   }
 }

@@ -20,7 +20,8 @@
 - Captured a new product constraint that the monitored GitHub account must come from repository configuration such as `GITHUB_USERNAME`, making the project template-friendly for any GitHub user.
 - Analyzed Squad detection approaches for the dashboard. Recommended mirroring the existing Copilot detection pattern: check `.squad/team.md` via Contents API (1 call/repo) + filter for `squad/` branch prefix in already-fetched data. MVP is ~50 lines per pipeline file. Decision documented in `.squad/decisions/inbox/keyser-squad-detection.md`.
 
-## Team Coordination (2026-05-23T09:22:49Z)
+- Issue #15 (Show discussion activity per repo): Used Option A — `has_discussions` is available on the REST API repo object (already fetched), no additional API calls or GraphQL needed. Added `discussions_enabled: repo.has_discussions === true` to the data pipeline output and `buildDiscussionsBadge` in the frontend. Badge shows `💬 Discussions` with neutral tone when discussions are enabled. Approach is zero-cost in terms of API rate limits.
+
 
 Scribe consolidated team deliverables:
 - **Fenster (DevOps):** GitHub Actions pipeline complete — `update-dashboard.yml`, `scripts/fetch-data.js`, deployment ready
