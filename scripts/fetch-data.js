@@ -409,12 +409,28 @@ function buildPriorityIssues(issues) {
     .map(({ score, ...issue }) => issue);
 }
 
+async function getTrafficViews(fullName) {
+  const data = await fetchJson(`/repos/${fullName}/traffic/views`, {
+    context: `Fetching traffic for ${fullName}`,
+    allowStatuses: [403, 404, 451]
+  });
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    count: data.count || 0,
+    uniques: data.uniques || 0
+  };
+}
+
 async function buildRepoRecord(repo) {
   const fullName = repo.full_name;
   log(`Processing ${fullName}`);
 
   try {
-    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile] = await Promise.all([
+    const [issuesAndPrs, pulls, branches, lastCommitDate, releaseInfo, squadTeamFile, trafficViews] = await Promise.all([
       getIssues(fullName),
       getPulls(fullName),
       getBranches(fullName),
@@ -423,7 +439,8 @@ async function buildRepoRecord(repo) {
       fetchJson(`/repos/${fullName}/contents/.squad/team.md`, {
         context: `Checking Squad presence for ${fullName}`,
         allowStatuses: [404]
-      })
+      }),
+      getTrafficViews(fullName)
     ]);
 
     const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
@@ -620,7 +637,8 @@ async function buildRepoRecord(repo) {
           hasRecentActivity,
           hasRelease
         })
-      }
+      },
+      traffic: trafficViews
     };
   } catch (error) {
     warn(`Falling back to partial data for ${fullName}: ${error.message}`);
@@ -676,7 +694,8 @@ async function buildRepoRecord(repo) {
         summary: hasRecentActivity
           ? 'Repository is active, but some GitHub API data could not be fetched.'
           : 'Repository is quiet, and some GitHub API data could not be fetched.'
-      }
+      },
+      traffic: null
     };
   }
 }

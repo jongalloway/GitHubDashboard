@@ -824,6 +824,14 @@
     return panel;
   }
 
+  function buildTrafficBadge(repo) {
+    if (!repo.traffic) return null;
+    const { count, uniques } = repo.traffic;
+    const badge = buildBadge('👁️', `${uniques} visitors`, 'neutral');
+    badge.title = `${count} views, ${uniques} unique visitors (last 14 days)`;
+    return badge;
+  }
+
   function buildStatusBadges(repo) {
     const release = repo.releases || {};
     const copilot = repo.copilot_activity || {};
@@ -842,6 +850,9 @@
 
     badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
     badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
+
+    const trafficBadge = buildTrafficBadge(repo);
+    if (trafficBadge) badges.push(trafficBadge);
 
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
