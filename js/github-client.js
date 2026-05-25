@@ -326,6 +326,25 @@ window.GHD = window.GHD || {};
         }
       } catch (_) {}
 
+      // GitHub Pages
+      let pagesInfo = { enabled: false };
+      try {
+        const pagesData = await _fetchJson(`${API_BASE}/repos/${fullName}/pages`, token);
+        if (pagesData) {
+          const deployments = await _fetchJson(
+            `${API_BASE}/repos/${fullName}/deployments?environment=github-pages&per_page=1`,
+            token
+          );
+          const latestDeploy = Array.isArray(deployments) && deployments.length ? deployments[0] : null;
+          pagesInfo = {
+            enabled: true,
+            url: pagesData.html_url || null,
+            status: pagesData.status || 'unknown',
+            deployed_at: latestDeploy?.created_at || null
+          };
+        }
+      } catch (_) {}
+
       // Issues (exclude PRs that GitHub returns in issues endpoint)
       const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
       const openIssuesCount = issueRecords.length;
@@ -480,6 +499,7 @@ window.GHD = window.GHD || {};
         discussions_enabled: repo.has_discussions === true,
         license: repo.license?.spdx_id || null,
         has_readme: null,
+        pages: pagesInfo,
         next_steps: {
           status: nextStepStatus,
           signals: nextStepSignals,
@@ -544,6 +564,7 @@ window.GHD = window.GHD || {};
         discussions_enabled: repo.has_discussions === true,
         license: repo.license?.spdx_id || null,
         has_readme: null,
+        pages: { enabled: false },
         priority_issues: [],
         pending_reviews: { count: 0, items: [] },
         next_steps: {
@@ -678,6 +699,24 @@ window.GHD = window.GHD || {};
         }
       } catch (_) {}
 
+      // GitHub Pages (public endpoint — available without auth for public repos)
+      let pagesInfo = { enabled: false };
+      try {
+        const pagesData = await _fetchJsonPublic(`${API_BASE}/repos/${fullName}/pages`);
+        if (pagesData) {
+          const deployments = await _fetchJsonPublic(
+            `${API_BASE}/repos/${fullName}/deployments?environment=github-pages&per_page=1`
+          );
+          const latestDeploy = Array.isArray(deployments) && deployments.length ? deployments[0] : null;
+          pagesInfo = {
+            enabled: true,
+            url: pagesData.html_url || null,
+            status: pagesData.status || 'unknown',
+            deployed_at: latestDeploy?.created_at || null
+          };
+        }
+      } catch (_) {}
+
       const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
       const openIssuesCount = issueRecords.length;
 
@@ -795,6 +834,7 @@ window.GHD = window.GHD || {};
         discussions_enabled: repo.has_discussions === true,
         license: repo.license?.spdx_id || null,
         has_readme: null,
+        pages: pagesInfo,
         next_steps: {
           status: nextStepStatus,
           signals: nextStepSignals,
@@ -858,6 +898,7 @@ window.GHD = window.GHD || {};
         discussions_enabled: repo.has_discussions === true,
         license: repo.license?.spdx_id || null,
         has_readme: null,
+        pages: { enabled: false },
         priority_issues: [],
         pending_reviews: { count: 0, items: [] },
         next_steps: {

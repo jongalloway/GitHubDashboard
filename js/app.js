@@ -859,8 +859,19 @@
     return wrapper;
   }
 
+  function _stripReleaseSummaryText(summary) {
+    const releasePatterns = [
+      'Release is overdue',
+      'Recent commits have not shipped in a release'
+    ];
+    const trimmed = summary.replace(/\.$/, '');
+    const parts = trimmed.split(', ').filter((p) => !releasePatterns.includes(p));
+    return parts.length > 0 ? `${parts.join(', ')}.` : '';
+  }
+
   function buildNextStepPanel(repo, status) {
     const nextSteps = repo.next_steps || {};
+    const na = isReleaseNA(repo);
     const panel = document.createElement('section');
     panel.className = `next-step-panel status-${status}`;
 
@@ -871,16 +882,21 @@
     const title = document.createElement('strong');
     title.textContent = 'Next steps';
 
+    const rawSummary = nextSteps.summary || 'No next-step summary available.';
+    const summaryText = na ? (_stripReleaseSummaryText(rawSummary) || 'No next-step summary available.') : rawSummary;
+
     const summary = document.createElement('p');
     summary.className = 'next-step-summary';
-    summary.textContent = nextSteps.summary || 'No next-step summary available.';
+    summary.textContent = summaryText;
 
     panel.append(pill, title, summary);
 
-    if (Array.isArray(nextSteps.signals) && nextSteps.signals.length) {
+    const rawSignals = Array.isArray(nextSteps.signals) ? nextSteps.signals : [];
+    const signals = na ? rawSignals.filter((s) => s !== 'release-overdue') : rawSignals;
+    if (signals.length) {
       const row = document.createElement('div');
       row.className = 'status-row';
-      nextSteps.signals.forEach((signal) => {
+      signals.forEach((signal) => {
         const badge = document.createElement('span');
         badge.className = 'badge neutral';
         badge.textContent = signal.replaceAll('-', ' ');
@@ -966,6 +982,9 @@
       badges.push(workflowBadge);
     }
 
+    const pagesBadge = buildPagesBadge(repo);
+    if (pagesBadge) badges.push(pagesBadge);
+
     if (repo.is_archived) {
       badges.push(buildBadge('🗃️', 'Archived', 'neutral'));
     }
@@ -1021,6 +1040,35 @@
   function buildDiscussionsBadge(repo) {
     if (!repo.discussions_enabled) return null;
     return buildBadge('💬', 'Discussions', 'neutral', 'Discussions are enabled for this repo');
+  }
+
+  function buildPagesBadge(repo) {
+    const pages = repo.pages;
+    if (!pages || !pages.enabled) return null;
+
+    const tone = pages.status === 'built' ? 'success'
+      : pages.status === 'building' ? 'warning'
+      : pages.status === 'errored' ? 'danger'
+      : 'neutral';
+
+    const tooltipParts = [];
+    if (pages.url) tooltipParts.push(pages.url);
+    if (pages.deployed_at) tooltipParts.push(`Deployed ${formatAbsoluteDate(pages.deployed_at)}`);
+    const tooltip = tooltipParts.length ? tooltipParts.join('\n') : null;
+
+    const badge = buildBadge('🌐', 'Pages', tone, tooltip);
+
+    if (pages.url) {
+      const link = document.createElement('a');
+      link.href = pages.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.className = 'badge-link';
+      link.appendChild(badge);
+      return link;
+    }
+
+    return badge;
   }
 
   function buildBranchBadge(repo) {
