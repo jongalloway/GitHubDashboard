@@ -54,6 +54,7 @@
 
   // Module-level auth state
   let configuredOwner = null;
+  let _resolvedOwner; // undefined = not yet resolved, null = resolved but not found
 
   // ── Pin / Close / Notes / Release-NA state ────────────────
   const PINNED_KEY = 'ghd-pinned';
@@ -136,15 +137,23 @@
     const Auth = window.GHD && window.GHD.Auth;
     const Cache = window.GHD && window.GHD.Cache;
 
+    // Resolve owner from config.json or hostname — needed for both public and private flow
+    const owner = await resolveOwner();
+
     if (!Auth || !Cache) {
-      renderConnectState();
-      _setAuthUI('public');
+      if (owner) {
+        await _loadPublicDashboard(owner);
+      } else {
+        renderConnectState();
+        _setAuthUI('public');
+      }
       return;
     }
 
     if (Auth.ready) await Auth.ready;
 
     if (Auth.isAuthenticated()) {
+      configuredOwner = owner; // config/hostname owner takes precedence in background refresh
       const cache = Cache.readCache();
       if (cache && !Cache.isHardStale(cache)) {
         _renderFromCache(cache);
@@ -158,9 +167,94 @@
         _backgroundRefresh();
       }
     } else {
+      if (owner) {
+        await _loadPublicDashboard(owner);
+      } else {
+        renderConnectState();
+        _setAuthUI('public');
+      }
+    }
+  }
+
+  // ── Owner resolution ──────────────────────────────────────
+
+  /**
+   * Determine the repo owner from (in priority order):
+   * 1. config.json "owner" field (explicit override)
+   * 2. GitHub Pages hostname pattern: {username}.github.io
+   * 3. null — caller must prompt sign-in
+   *
+   * Result is cached so subsequent calls are synchronous.
+   */
+  async function resolveOwner() {
+    if (_resolvedOwner !== undefined) return _resolvedOwner;
+
+    // 1. Try config.json override
+    try {
+      const resp = await fetch('config.json');
+      if (resp.ok) {
+        const cfg = await resp.json();
+        if (cfg && typeof cfg.owner === 'string' && cfg.owner.trim()) {
+          _resolvedOwner = cfg.owner.trim();
+          return _resolvedOwner;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Parse GitHub Pages hostname: {username}.github.io
+    const match = window.location.hostname.match(/^([^.]+)\.github\.io$/);
+    if (match) {
+      _resolvedOwner = match[1];
+      return _resolvedOwner;
+    }
+
+    // 3. No owner found (localhost or custom domain without config override)
+    _resolvedOwner = null;
+    return null;
+  }
+
+  // ── Public data loader ────────────────────────────────────
+
+  async function _loadPublicDashboard(owner) {
+    const Client = window.GHD && window.GHD.GitHubClient;
+    if (!Client || !Client.fetchPublicDashboard) {
       renderConnectState();
       _setAuthUI('public');
+      return;
     }
+
+    configuredOwner = owner;
+    if (root.headerNote) root.headerNote.textContent = `Loading public repos for @${owner}\u2026`;
+
+    try {
+      const payload = await Client.fetchPublicDashboard(owner);
+      const repos = payload.dashboard.repos;
+
+      renderSummary(computeSummary(repos));
+
+      if (!repos.length) {
+        renderEmptyState();
+      } else {
+        renderRepos(sortRepos(repos));
+      }
+
+      if (root.headerNote) root.headerNote.textContent = `@${owner} \u00b7 Public repos`;
+      if (root.refreshMeta) {
+        root.refreshMeta.innerHTML = `
+          <span class="refresh-inline">
+            Showing public repos
+            \u00b7 <button type="button" class="public-sign-in-link">Sign in</button>
+            to include private repos
+          </span>
+        `;
+        root.refreshMeta.querySelector('.public-sign-in-link')
+          ?.addEventListener('click', _handleSignIn);
+      }
+    } catch (_) {
+      renderConnectState();
+    }
+
+    _setAuthUI('public');
   }
 
   // ── Auth UI setup ─────────────────────────────────────────
@@ -1158,6 +1252,7 @@
         <h3>Connect your GitHub account</h3>
         <p class="connect-copy">Track release readiness, Copilot activity, priority issues, and PR review queues across your most recent repositories.</p>
         <p class="connect-copy">Sign in with a Personal Access Token using the button above.&nbsp;<a class="connect-link" href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noreferrer">Generate a fine-grained PAT on GitHub →</a></p>
+        <p class="connect-copy">To show public repos without signing in, set <code>"owner": "yourusername"</code> in <code>config.json</code> — or deploy to GitHub Pages where the owner is auto-detected from the URL.</p>
       </article>
     `;
   }

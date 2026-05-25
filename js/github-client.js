@@ -39,6 +39,13 @@ window.GHD = window.GHD || {};
     };
   }
 
+  function _headersPublic() {
+    return {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  }
+
   // ── HTTP helpers ─────────────────────────────────────────
 
   function _getNextLink(linkHeader) {
@@ -67,6 +74,27 @@ window.GHD = window.GHD || {};
       if (!response.ok) {
         throw new Error(`Paginate failed (${response.status}): ${nextUrl}`);
       }
+      const page = await response.json();
+      if (Array.isArray(page)) items.push(...page);
+      nextUrl = _getNextLink(response.headers.get('link'));
+    }
+    return items;
+  }
+
+  async function _fetchJsonPublic(url) {
+    const response = await fetch(url, { headers: _headersPublic() });
+    if (response.status === 404 || response.status === 409) return null;
+    if (!response.ok) throw new Error(`GitHub API failed (${response.status}): ${url}`);
+    return response.json();
+  }
+
+  async function _paginatePublic(url) {
+    const items = [];
+    let nextUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+    while (nextUrl) {
+      const response = await fetch(nextUrl, { headers: _headersPublic() });
+      if (response.status === 404 || response.status === 409) break;
+      if (!response.ok) throw new Error(`Paginate failed (${response.status}): ${nextUrl}`);
       const page = await response.json();
       if (Array.isArray(page)) items.push(...page);
       nextUrl = _getNextLink(response.headers.get('link'));
@@ -591,7 +619,302 @@ window.GHD = window.GHD || {};
     };
   }
 
+  // ── Public (unauthenticated) repo detail fetcher ────────
+
+  async function _fetchRepoDetailsPublic(repo) {
+    const fullName = repo.full_name;
+    const defaultBranch = repo.default_branch || 'main';
+
+    try {
+      const [issuesAndPrs, pulls] = await Promise.all([
+        _paginatePublic(
+          `${API_BASE}/repos/${fullName}/issues?state=open&per_page=100&sort=updated&direction=desc`
+        ),
+        _paginatePublic(
+          `${API_BASE}/repos/${fullName}/pulls?state=open&per_page=100&sort=updated&direction=desc`
+        )
+      ]);
+
+      let lastCommitDate = null;
+      try {
+        const commit = await _fetchJsonPublic(
+          `${API_BASE}/repos/${fullName}/commits/${encodeURIComponent(defaultBranch)}`
+        );
+        if (commit?.commit) {
+          lastCommitDate =
+            commit.commit.committer?.date || commit.commit.author?.date || null;
+        }
+      } catch (_) {}
+
+      let releaseInfo = {
+        latest_tag: null,
+        latest_published_at: null,
+        commits_since_latest: 0,
+        has_release: false,
+        release_overdue: false
+      };
+      try {
+        const release = await _fetchJsonPublic(
+          `${API_BASE}/repos/${fullName}/releases/latest`
+        );
+        if (release?.tag_name) {
+          let commitsSince = 0;
+          try {
+            const comparison = await _fetchJsonPublic(
+              `${API_BASE}/repos/${fullName}/compare/${encodeURIComponent(release.tag_name)}...${encodeURIComponent(defaultBranch)}`
+            );
+            if (comparison?.ahead_by !== undefined) {
+              commitsSince = comparison.ahead_by;
+            }
+          } catch (_) {}
+
+          releaseInfo = {
+            latest_tag: release.tag_name,
+            latest_published_at: release.published_at || release.created_at || null,
+            commits_since_latest: commitsSince,
+            has_release: true,
+            release_overdue: commitsSince > RELEASE_OVERDUE_THRESHOLD
+          };
+        }
+      } catch (_) {}
+
+      const issueRecords = issuesAndPrs.filter((item) => !item.pull_request);
+      const openIssuesCount = issueRecords.length;
+
+      const triageIssues = issueRecords.filter((issue) => {
+        const p = _issuePriority(issue);
+        return p.isUnassigned || p.isUnlabeled;
+      });
+      const priorityIssues = _buildPriorityIssues(issueRecords);
+
+      // Non-draft PRs only — draft state requires auth for accurate detection
+      const pendingReviewItems = pulls
+        .filter((pull) => !pull.draft)
+        .map((pull) => ({
+          number: pull.number,
+          title: pull.title,
+          html_url: pull.html_url,
+          author: pull.user?.login || 'unknown',
+          is_draft: false,
+          awaiting_review: true,
+          created_at: pull.created_at,
+          updated_at: pull.updated_at,
+          requested_reviewers: [
+            ...(pull.requested_reviewers || []).map((r) => r.login),
+            ...(pull.requested_teams || []).map((t) => t.slug)
+          ],
+          source: _getPullSource(pull)
+        }));
+
+      // Copilot signals from PRs/issues only (branches need extra API call)
+      const copilotPulls = pulls.filter((p) => _getPullSource(p) === 'copilot');
+      const copilotIssues = issueRecords.filter((issue) =>
+        _normalizeLabels(issue.labels).some((l) => l.toLowerCase().includes('copilot'))
+      );
+
+      const copilotSignals = [];
+      if (copilotPulls.length > 0) copilotSignals.push('copilot-open-pr');
+      if (copilotPulls.some((p) => p.draft)) copilotSignals.push('copilot-draft-pr');
+      if (copilotIssues.length > 0) copilotSignals.push('copilot-label');
+
+      const hasRelease = releaseInfo.has_release;
+      const releaseOverdue = hasRelease
+        ? releaseInfo.release_overdue
+        : _isRecent(lastCommitDate || repo.pushed_at);
+      releaseInfo.release_overdue = releaseOverdue;
+
+      const prsNeedReview = pendingReviewItems.length > 0;
+      const issuesNeedTriage = triageIssues.length > 0;
+      const copilotWorkReady = copilotPulls.some((p) => p.draft);
+
+      const signals = [];
+      if (releaseOverdue) signals.push('release-overdue');
+      if (prsNeedReview) signals.push('prs-need-review');
+      if (issuesNeedTriage) signals.push('issues-need-triage');
+      if (copilotWorkReady) signals.push('copilot-work-ready');
+
+      const recentActivityAt = _maxTimestamp(
+        repo.pushed_at,
+        lastCommitDate,
+        issueRecords.map((i) => i.updated_at),
+        pulls.map((p) => p.updated_at)
+      );
+      const hasRecentActivity = _isRecent(recentActivityAt);
+
+      const nextStepSignals =
+        signals.length > 0 ? signals : [hasRecentActivity ? 'active' : 'quiet'];
+      const nextStepStatus =
+        signals.length > 0 ? 'needs-attention' : hasRecentActivity ? 'active' : 'quiet';
+
+      return {
+        name: repo.name,
+        full_name: repo.full_name,
+        html_url: repo.html_url,
+        description: repo.description,
+        primary_language: repo.language,
+        updated_at: repo.updated_at,
+        pushed_at: repo.pushed_at,
+        default_branch: repo.default_branch,
+        open_issues_count: openIssuesCount,
+        open_pull_requests_count: pulls.length,
+        last_commit_date: lastCommitDate,
+        is_fork: repo.fork,
+        is_archived: repo.archived,
+        topics: Array.isArray(repo.topics) ? repo.topics : [],
+        releases: releaseInfo,
+        copilot_activity: {
+          copilot_branch_count: 0,
+          copilot_branches: [],
+          copilot_open_pr_count: copilotPulls.length,
+          copilot_draft_pr_count: copilotPulls.filter((p) => p.draft).length,
+          copilot_labeled_issue_count: copilotIssues.length,
+          last_activity_at: _maxTimestamp(
+            copilotPulls.map((p) => p.updated_at),
+            copilotIssues.map((i) => i.updated_at)
+          ),
+          signals: copilotSignals
+        },
+        squad_activity: {
+          squad_enabled: false,
+          squad_branch_count: 0,
+          squad_branches: [],
+          squad_open_pr_count: 0,
+          signals: []
+        },
+        priority_issues: priorityIssues,
+        pending_reviews: {
+          count: pendingReviewItems.length,
+          items: pendingReviewItems
+        },
+        non_default_branch_count: 0,
+        is_private: false,
+        workflow_status: { has_workflows: false, latest_run: null },
+        security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
+        traffic: null,
+        discussions_enabled: repo.has_discussions === true,
+        license: repo.license?.spdx_id || null,
+        has_readme: null,
+        next_steps: {
+          status: nextStepStatus,
+          signals: nextStepSignals,
+          summary: _summarizeNextSteps({
+            releaseOverdue,
+            pendingReviewCount: pendingReviewItems.length,
+            triageIssueCount: triageIssues.length,
+            copilotWorkReady,
+            squadWorkReady: false,
+            hasRecentActivity,
+            hasRelease
+          })
+        }
+      };
+    } catch (_) {
+      const hasRecentActivity = _isRecent(repo.pushed_at || repo.updated_at);
+      return {
+        name: repo.name,
+        full_name: repo.full_name,
+        html_url: repo.html_url,
+        description: repo.description,
+        primary_language: repo.language,
+        updated_at: repo.updated_at,
+        pushed_at: repo.pushed_at,
+        default_branch: repo.default_branch,
+        open_issues_count: 0,
+        open_pull_requests_count: 0,
+        last_commit_date: null,
+        is_fork: repo.fork,
+        is_archived: repo.archived,
+        topics: Array.isArray(repo.topics) ? repo.topics : [],
+        releases: {
+          latest_tag: null,
+          latest_published_at: null,
+          commits_since_latest: 0,
+          has_release: false,
+          release_overdue: false
+        },
+        copilot_activity: {
+          copilot_branch_count: 0,
+          copilot_branches: [],
+          copilot_open_pr_count: 0,
+          copilot_draft_pr_count: 0,
+          copilot_labeled_issue_count: 0,
+          last_activity_at: null,
+          signals: []
+        },
+        squad_activity: {
+          squad_enabled: false,
+          squad_branch_count: 0,
+          squad_branches: [],
+          squad_open_pr_count: 0,
+          signals: []
+        },
+        non_default_branch_count: 0,
+        is_private: false,
+        workflow_status: { has_workflows: false, latest_run: null },
+        security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
+        traffic: null,
+        discussions_enabled: repo.has_discussions === true,
+        license: repo.license?.spdx_id || null,
+        has_readme: null,
+        priority_issues: [],
+        pending_reviews: { count: 0, items: [] },
+        next_steps: {
+          status: hasRecentActivity ? 'active' : 'quiet',
+          signals: [hasRecentActivity ? 'active' : 'quiet'],
+          summary: hasRecentActivity
+            ? 'Repository is active with recent commits or discussion.'
+            : 'Repository is quiet right now.'
+        }
+      };
+    }
+  }
+
+  /**
+   * Fetch public repos for an owner without authentication.
+   * Returns the same payload shape as fetchPrivateDashboard.
+   * Auth-only fields (workflow status, dependabot, code scanning, traffic)
+   * default to null/empty — same as the private path's catch-block fallback.
+   *
+   * Rate limiting: unauthenticated calls are limited to 60/hour per IP.
+   * We mitigate by fetching only 10 repos and skipping branch-list calls.
+   *
+   * @param {string} owner - GitHub login of the repo owner
+   * @returns {{ dashboard }}
+   */
+  async function fetchPublicDashboard(owner) {
+    const allRepos = await _paginatePublic(
+      `${API_BASE}/users/${owner}/repos?type=owner&sort=pushed&direction=desc&per_page=100`
+    );
+
+    const selectedRepos = allRepos
+      .filter((r) => !r.fork && !r.archived)
+      .sort((a, b) => {
+        const da = new Date(a.pushed_at || a.updated_at || 0).getTime();
+        const db = new Date(b.pushed_at || b.updated_at || 0).getTime();
+        return db - da;
+      })
+      .slice(0, MAX_REPOS);
+
+    const tasks = selectedRepos.map((repo) => () => _fetchRepoDetailsPublic(repo));
+    const repoDetails = await _runWithConcurrency(tasks, MAX_CONCURRENT);
+    const validRepos = repoDetails.filter(Boolean);
+
+    const generatedAt = new Date().toISOString();
+
+    return {
+      dashboard: {
+        generated_at: generatedAt,
+        owner,
+        repo_count: validRepos.length,
+        repos: validRepos
+      }
+    };
+  }
+
   GHD.GitHubClient = {
-    fetchPrivateDashboard
+    fetchPrivateDashboard,
+    fetchPublicDashboard
   };
 }(window.GHD));

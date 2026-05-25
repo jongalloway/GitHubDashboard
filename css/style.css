@@ -848,6 +848,18 @@ html[data-theme="light"] .badge--private {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+.state-card.connect {
+  border-color: rgba(99, 179, 237, 0.38);
+}
+
+.connect-copy {
+  color: var(--text-muted);
+}
+
+.connect-link {
+  white-space: nowrap;
+}
+
 .noscript-banner {
   width: min(calc(100% - 2rem), var(--max-width));
   margin: 0 auto 2rem;
@@ -1181,4 +1193,22 @@ code {
 .footer-github-icon {
   flex-shrink: 0;
   opacity: 0.75;
+}
+
+/* ── Public view note ────────────────────────────────────── */
+
+.public-sign-in-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.public-sign-in-link:hover {
+  opacity: 0.8;
 }
