@@ -131,47 +131,19 @@
 
   async function init() {
     renderSummarySkeleton();
-
-    // ── Always load public dashboard.json first ──────────
-    let publicLoadOk = false;
-    try {
-      const response = await fetch('data/dashboard.json', { cache: 'no-store' });
-      if (!response.ok) {
-        const error = new Error(
-          response.status === 404
-            ? 'Run the workflow to populate dashboard data after setting GITHUB_USERNAME.'
-            : `Dashboard data request failed with ${response.status}.`
-        );
-        error.status = response.status;
-        throw error;
-      }
-
-      const data = await response.json();
-      configuredOwner = data.owner || null;
-      const repos = Array.isArray(data.repos) ? data.repos.slice() : [];
-
-      updateHeader(data);
-      renderSummary(computeSummary(repos));
-
-      if (!repos.length) {
-        renderEmptyState();
-      } else {
-        renderRepos(sortRepos(repos));
-      }
-      publicLoadOk = true;
-    } catch (error) {
-      renderErrorState(error);
-    }
-
-    // ── Auth path — runs after public render ─────────────
     _initAuthControls();
 
     const Auth = window.GHD && window.GHD.Auth;
     const Cache = window.GHD && window.GHD.Cache;
 
-    if (!Auth || !Cache || !publicLoadOk) return;
+    if (!Auth || !Cache) {
+      renderConnectState();
+      _setAuthUI('public');
+      return;
+    }
 
     if (Auth.ready) await Auth.ready;
+
     if (Auth.isAuthenticated()) {
       const cache = Cache.readCache();
       if (cache && !Cache.isHardStale(cache)) {
@@ -186,6 +158,7 @@
         _backgroundRefresh();
       }
     } else {
+      renderConnectState();
       _setAuthUI('public');
     }
   }
@@ -327,6 +300,7 @@
       // Keep existing render if refresh fails; stay in private mode if cache valid
       const existing = Cache.readCache();
       if (!existing) {
+        renderConnectState();
         _setAuthUI('public');
       } else {
         _setAuthUI('private');
@@ -1170,6 +1144,20 @@
       <article class="state-card empty">
         <h3>No repositories to show</h3>
         <p class="empty-copy">The dashboard data loaded successfully, but there are no repository records yet.</p>
+      </article>
+    `;
+  }
+
+  function renderConnectState() {
+    root.repoGrid.hidden = true;
+    root.repoGrid.innerHTML = '';
+    if (root.headerNote) root.headerNote.textContent = 'No account connected';
+    if (root.refreshMeta) root.refreshMeta.textContent = '';
+    root.stateRegion.innerHTML = `
+      <article class="state-card connect">
+        <h3>Connect your GitHub account</h3>
+        <p class="connect-copy">Track release readiness, Copilot activity, priority issues, and PR review queues across your most recent repositories.</p>
+        <p class="connect-copy">Sign in with a Personal Access Token using the button above.&nbsp;<a class="connect-link" href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noreferrer">Generate a fine-grained PAT on GitHub →</a></p>
       </article>
     `;
   }

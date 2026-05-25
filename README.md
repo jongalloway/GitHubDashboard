@@ -8,43 +8,49 @@ A personal project dashboard that tracks status and next steps for your most rec
 
 ## Use It Yourself
 
-This project is designed to be forked. The committed `data/dashboard.json` shows the original author's repos as an example — once you configure your own username, the workflow overwrites it with your data.
+This project is designed to be forked. All data is fetched directly in the browser using your GitHub Personal Access Token — no server-side pipeline or repository variables needed.
 
 ### Quick Setup
 
 1. **Fork** this repository
-2. Go to **Settings → Variables → Actions** and add a repository variable:
-   - Name: `DASHBOARD_OWNER`
-   - Value: *your GitHub username*
-3. Go to **Settings → Pages** and set Source to **GitHub Actions**
-4. Go to **Actions → Update Dashboard** and click **Run workflow**
-5. Your dashboard will be live at `https://{your-username}.github.io/GitHubDashboard/`
+2. Go to **Settings → Pages** and set Source to **GitHub Actions**
+3. Go to **Actions → Deploy Dashboard** and click **Run workflow** (or push to main)
+4. Your dashboard will be live at `https://{your-username}.github.io/GitHubDashboard/`
+5. Visit the site and click **Sign in** to enter a Personal Access Token
 
-The workflow runs daily at 6:00 AM UTC and can be triggered manually anytime.
+That's it. The dashboard fetches your data client-side — nothing is stored on the server.
 
 ### Local Development
+
+```bash
+# Serve locally (any static server works)
+npx serve .
+```
+
+To test with live data locally, you can also run the data fetch script:
 
 ```bash
 # Install dependencies
 npm install
 
-# Set your username and run the data fetch
+# Set your token and fetch data
+export GITHUB_TOKEN=$(gh auth token)
 export DASHBOARD_OWNER=your-username
 npm run fetch-data
 
-# Serve locally (any static server works)
+# Serve locally
 npx serve .
 ```
 
-The fetch script uses the `gh` CLI for authentication. Make sure you're logged in with `gh auth login`.
+The generated `data/dashboard.json` is gitignored and used only for local testing.
 
 ## How It Works
 
-- **GitHub Actions** runs `scripts/fetch-data.js` on a schedule
-- The script fetches your 10 most recently pushed public repos (excluding forks and archived repos)
-- It computes next-step heuristics: release overdue, PRs needing review, issues to triage, Copilot activity
-- The static frontend (`index.html`) reads `data/dashboard.json` and renders the dashboard
-- GitHub Pages serves the result
+- The **GitHub Actions workflow** deploys the static app shell to GitHub Pages on every push to main
+- When you open the dashboard, it checks for a stored Personal Access Token in your browser
+- With a PAT, all data is fetched directly from the GitHub API in the browser
+- No data files are stored in the repository or served from Pages
+- GitHub Pages serves the static app; your token stays in your browser's localStorage
 
 ## Features
 
@@ -57,6 +63,6 @@ The fetch script uses the `gh` CLI for authentication. Make sure you're logged i
 ## Stack
 
 - Vanilla HTML/CSS/JS (no build tools)
-- Node.js for the data pipeline
-- GitHub Actions for scheduling
+- Node.js for optional local data fetch (`scripts/fetch-data.js`)
+- GitHub Actions for deployment
 - GitHub Pages for hosting
