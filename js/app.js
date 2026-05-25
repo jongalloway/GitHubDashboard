@@ -900,9 +900,8 @@
     const viewCount = views.count || 0;
     const cloneCount = clones.count || 0;
     const cloneUniques = clones.uniques || 0;
-    const badge = buildBadge('👁️', `${uniques} unique visitors`, 'neutral');
-    badge.title = `${viewCount} views, ${uniques} unique visitors, ${cloneCount} clones (${cloneUniques} unique) — last 14 days`;
-    return badge;
+    const tooltip = `Views: ${viewCount} (${uniques} unique)\nClones: ${cloneCount} (${cloneUniques} unique)\nlast 14 days`;
+    return buildBadge('👁️', `${uniques} unique visitors`, 'neutral', tooltip);
   }
 
   function buildStatusBadges(repo) {
@@ -921,8 +920,19 @@
       badges.push(buildBadge('🎯', label, 'squad'));
     }
 
-    badges.push(buildBadge('📋', getIssueLabel(repo), getPriorityIssues(repo).length ? 'warning' : 'neutral'));
-    badges.push(buildBadge('👀', getReviewLabel(repo), getPendingReviewCount(repo) ? 'warning' : 'neutral'));
+    const issueCount = Number(repo.open_issues_count || 0);
+    const priorityCount = getPriorityIssues(repo).length;
+    const issueTooltip = issueCount > 0
+      ? `${issueCount} open issue${issueCount === 1 ? '' : 's'} · ${priorityCount} priority`
+      : 'No open issues';
+    badges.push(buildBadge('📋', getIssueLabel(repo), priorityCount ? 'warning' : 'neutral', issueTooltip));
+
+    const prCount = Number(repo.open_pull_requests_count || 0);
+    const pendingCount = getPendingReviewCount(repo);
+    const prTooltip = prCount > 0
+      ? `${prCount} open pull request${prCount === 1 ? '' : 's'} · ${pendingCount} pending review`
+      : 'No open pull requests';
+    badges.push(buildBadge('👀', getReviewLabel(repo), pendingCount ? 'warning' : 'neutral', prTooltip));
 
     const licenseBadge = buildLicenseBadge(repo);
     if (licenseBadge) badges.push(licenseBadge);
@@ -975,6 +985,7 @@
       const badge = document.createElement('span');
       badge.className = 'badge neutral release-na-badge';
       badge.title = 'Click to restore release tracking';
+      badge.setAttribute('data-tooltip', 'Release tracking disabled for this repo\nClick to re-enable');
       badge.textContent = '🚀 Release N/A';
       badge.addEventListener('click', () => { toggleReleaseNA(repo); renderRepos(_currentRepos); });
       return badge;
@@ -983,6 +994,7 @@
     if (!release.has_release) {
       const wrapper = document.createElement('span');
       wrapper.className = `badge ${needsRelease(repo) ? 'warning' : 'success'} badge-dismissible`;
+      wrapper.setAttribute('data-tooltip', 'No releases published yet\nClick × to mark as N/A');
       const text = document.createElement('span');
       text.textContent = `🚀 ${getReleaseLabel(release)}`;
       const dismissBtn = document.createElement('button');
@@ -1000,19 +1012,22 @@
       return wrapper;
     }
 
-    return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success');
+    const releaseTooltip = release.latest_published_at
+      ? `Released ${formatAbsoluteDate(release.latest_published_at)}`
+      : null;
+    return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success', releaseTooltip);
   }
 
   function buildDiscussionsBadge(repo) {
     if (!repo.discussions_enabled) return null;
-    return buildBadge('💬', 'Discussions', 'neutral');
+    return buildBadge('💬', 'Discussions', 'neutral', 'Discussions are enabled for this repo');
   }
 
   function buildBranchBadge(repo) {
     const count = repo.non_default_branch_count;
     if (!count || count <= 1) return null;
     const tone = count > 10 ? 'warning' : 'neutral';
-    return buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone);
+    return buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone, `${count} non-default branch${count === 1 ? '' : 'es'}`);
   }
 
   function buildCodeScanBadge(repo) {
@@ -1040,15 +1055,50 @@
       tone = 'neutral';
     }
 
-    return buildBadge('🔍', text, tone);
+    const tooltipParts = [`${total} code scanning alert${total === 1 ? '' : 's'}`];
+    if (critical > 0) tooltipParts.push(`${critical} critical`);
+    if (error > 0) tooltipParts.push(`${error} error`);
+    if (high > 0) tooltipParts.push(`${high} high`);
+    const medium = cs.medium || 0;
+    const low = cs.low || 0;
+    if (medium > 0) tooltipParts.push(`${medium} medium`);
+    if (low > 0) tooltipParts.push(`${low} low`);
+    const tooltip = tooltipParts.join(' · ');
+
+    return buildBadge('🔍', text, tone, tooltip);
   }
 
-  function buildBadge(icon, text, tone) {
+  function buildBadge(icon, text, tone, tooltip) {
     const badge = document.createElement('span');
     badge.className = `badge ${tone}`;
     badge.textContent = `${icon} ${text}`;
+    if (tooltip) {
+      badge.setAttribute('data-tooltip', tooltip);
+    }
     return badge;
   }
+
+  const _SPDX_NAMES = {
+    'MIT': 'MIT License',
+    'Apache-2.0': 'Apache License 2.0',
+    'GPL-2.0': 'GNU General Public License v2',
+    'GPL-2.0-only': 'GNU General Public License v2',
+    'GPL-3.0': 'GNU General Public License v3',
+    'GPL-3.0-only': 'GNU General Public License v3',
+    'LGPL-2.1': 'GNU Lesser GPL v2.1',
+    'LGPL-2.1-only': 'GNU Lesser GPL v2.1',
+    'LGPL-3.0': 'GNU Lesser GPL v3',
+    'BSD-2-Clause': 'BSD 2-Clause License',
+    'BSD-3-Clause': 'BSD 3-Clause License',
+    'ISC': 'ISC License',
+    'MPL-2.0': 'Mozilla Public License 2.0',
+    'AGPL-3.0': 'GNU Affero GPL v3',
+    'AGPL-3.0-only': 'GNU Affero GPL v3',
+    'Unlicense': 'The Unlicense',
+    'CC0-1.0': 'Creative Commons Zero v1.0',
+    'CC-BY-4.0': 'Creative Commons Attribution 4.0',
+    'CC-BY-SA-4.0': 'Creative Commons Attribution-ShareAlike 4.0',
+  };
 
   function buildLicenseBadge(repo) {
     if (repo.license === undefined) return null;
@@ -1060,7 +1110,10 @@
     const label = readmeMissing ? `${licenseLabel} · No README` : licenseLabel;
     const isWarning = isActive && (!repo.license || readmeMissing);
 
-    return buildBadge('📄', label, isWarning ? 'warning' : 'neutral');
+    const fullName = repo.license ? (_SPDX_NAMES[repo.license] || null) : null;
+    const tooltip = fullName && fullName !== licenseLabel ? fullName : null;
+
+    return buildBadge('📄', label, isWarning ? 'warning' : 'neutral', tooltip);
   }
 
   function buildActivityBadge(repo) {
@@ -1083,9 +1136,9 @@
       tone = 'danger';
     }
 
-    const badge = buildBadge('🕐', text, tone);
-    badge.title = formatAbsoluteDate(repo.last_commit_date);
-    return badge;
+    const absDate = formatAbsoluteDate(repo.last_commit_date);
+    const tooltip = absDate ? `Last pushed ${absDate}` : null;
+    return buildBadge('🕐', text, tone, tooltip);
   }
 
   function buildSecurityBadge(repo) {
@@ -1094,6 +1147,9 @@
 
     const critical = alerts.critical || 0;
     const high = alerts.high || 0;
+    const medium = alerts.medium || 0;
+    const low = alerts.low || 0;
+    const total = alerts.total || 0;
 
     let label, tone;
     if (critical > 0) {
@@ -1103,11 +1159,18 @@
       label = `${high} high`;
       tone = 'warning';
     } else {
-      label = `${alerts.total} alert${alerts.total === 1 ? '' : 's'}`;
+      label = `${total} alert${total === 1 ? '' : 's'}`;
       tone = 'neutral';
     }
 
-    return buildBadge('🔒', label, tone);
+    const tooltipParts = [`${total} Dependabot alert${total === 1 ? '' : 's'}`];
+    if (critical > 0) tooltipParts.push(`${critical} critical`);
+    if (high > 0) tooltipParts.push(`${high} high`);
+    if (medium > 0) tooltipParts.push(`${medium} medium`);
+    if (low > 0) tooltipParts.push(`${low} low`);
+    const tooltip = tooltipParts.join(' · ');
+
+    return buildBadge('🔒', label, tone, tooltip);
   }
 
   function buildWorkflowBadge(repo) {
@@ -1130,7 +1193,15 @@
       icon = '⚪'; text = 'CI unknown'; tone = 'neutral';
     }
 
-    const badge = buildBadge(icon, text, tone);
+    const tooltipParts = [];
+    if (run?.name) tooltipParts.push(run.name);
+    if (run?.updated_at) {
+      const rel = formatRelativeDate(run.updated_at);
+      if (rel) tooltipParts.push(rel);
+    }
+    const tooltip = tooltipParts.length ? tooltipParts.join(' · ') : null;
+
+    const badge = buildBadge(icon, text, tone, tooltip);
 
     if (run?.html_url) {
       const link = document.createElement('a');
