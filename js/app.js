@@ -12,51 +12,14 @@
   };
 
   const SUMMARY_CONFIG = [
-    {
-      key: 'releaseReady',
-      label: 'Repos needing a release',
-      detail: 'Release overdue or no release despite active work.'
-    },
-    {
-      key: 'pendingReviews',
-      label: 'PRs awaiting review',
-      detail: 'Human review queue across the visible repositories.'
-    },
-    {
-      key: 'priorityIssues',
-      label: 'Priority issues',
-      detail: 'Top highlighted issues surfaced by the pipeline.'
-    },
-    {
-      key: 'copilotRepos',
-      label: 'Repos with Copilot activity',
-      detail: 'Open Copilot branches, PRs, or recent AI signals.',
-      optional: true
-    },
-    {
-      key: 'squadRepos',
-      label: 'Repos with Squad',
-      detail: 'Repositories with active Squad AI team configuration.',
-      optional: true
-    },
-    {
-      key: 'securityAlerts',
-      label: 'Repos with security alerts',
-      detail: 'Open Dependabot alerts needing attention.',
-      optional: true
-    },
-    {
-      key: 'pagesDeployed',
-      label: 'GitHub Pages sites',
-      detail: 'Repos with active GitHub Pages deployments.',
-      optional: true
-    },
-    {
-      key: 'ciFailures',
-      label: 'Repos with CI failing',
-      detail: 'Workflow runs that are currently failing.',
-      optional: true
-    }
+    { key: 'securityAlerts',  priority: 1, optional: true,  label: 'Repos with security alerts',  detail: 'Open Dependabot alerts needing attention.' },
+    { key: 'ciFailures',      priority: 2, optional: true,  label: 'Repos with CI failing',         detail: 'Workflow runs that are currently failing.' },
+    { key: 'pendingReviews',  priority: 3, optional: false, label: 'PRs awaiting review',           detail: 'Human review queue across the visible repositories.' },
+    { key: 'releaseReady',    priority: 4, optional: false, label: 'Repos needing a release',       detail: 'Release overdue or no release despite active work.' },
+    { key: 'priorityIssues',  priority: 5, optional: false, label: 'Priority issues',               detail: 'Top highlighted issues surfaced by the pipeline.' },
+    { key: 'pagesDeployed',   priority: 6, optional: true,  label: 'GitHub Pages sites',            detail: 'Repos with active GitHub Pages deployments.' },
+    { key: 'copilotRepos',    priority: 7, optional: true,  label: 'Repos with Copilot activity',   detail: 'Open Copilot branches, PRs, or recent AI signals.' },
+    { key: 'squadRepos',      priority: 8, optional: true,  label: 'Repos with Squad',              detail: 'Repositories with active Squad AI team configuration.' }
   ];
 
   const root = {
@@ -436,8 +399,10 @@
 
   function renderSummarySkeleton() {
     root.summaryGrid.innerHTML = '';
-    SUMMARY_CONFIG.forEach((item) => {
-      if (item.optional) return;
+    const skeletonItems = [...SUMMARY_CONFIG]
+      .sort((a, b) => a.priority - b.priority)
+      .slice(0, 5);
+    skeletonItems.forEach((item) => {
       const card = document.createElement('article');
       card.className = 'summary-card';
       card.innerHTML = `
@@ -452,8 +417,12 @@
   function renderSummary(summary) {
     root.summaryGrid.innerHTML = '';
 
-    SUMMARY_CONFIG.forEach((item) => {
-      if (item.optional && summary[item.key] === 0) return;
+    const visibleItems = [...SUMMARY_CONFIG]
+      .sort((a, b) => a.priority - b.priority)
+      .filter((item) => !(item.optional && summary[item.key] === 0))
+      .slice(0, 5);
+
+    visibleItems.forEach((item) => {
       const card = document.createElement('article');
       card.className = 'summary-card';
       card.innerHTML = `
