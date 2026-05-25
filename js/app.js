@@ -30,12 +30,32 @@
     {
       key: 'copilotRepos',
       label: 'Repos with Copilot activity',
-      detail: 'Open Copilot branches, PRs, or recent AI signals.'
+      detail: 'Open Copilot branches, PRs, or recent AI signals.',
+      optional: true
     },
     {
       key: 'squadRepos',
       label: 'Repos with Squad',
-      detail: 'Repositories with active Squad AI team configuration.'
+      detail: 'Repositories with active Squad AI team configuration.',
+      optional: true
+    },
+    {
+      key: 'securityAlerts',
+      label: 'Repos with security alerts',
+      detail: 'Open Dependabot alerts needing attention.',
+      optional: true
+    },
+    {
+      key: 'pagesDeployed',
+      label: 'GitHub Pages sites',
+      detail: 'Repos with active GitHub Pages deployments.',
+      optional: true
+    },
+    {
+      key: 'ciFailures',
+      label: 'Repos with CI failing',
+      detail: 'Workflow runs that are currently failing.',
+      optional: true
     }
   ];
 
@@ -417,6 +437,7 @@
   function renderSummarySkeleton() {
     root.summaryGrid.innerHTML = '';
     SUMMARY_CONFIG.forEach((item) => {
+      if (item.optional) return;
       const card = document.createElement('article');
       card.className = 'summary-card';
       card.innerHTML = `
@@ -432,6 +453,7 @@
     root.summaryGrid.innerHTML = '';
 
     SUMMARY_CONFIG.forEach((item) => {
+      if (item.optional && summary[item.key] === 0) return;
       const card = document.createElement('article');
       card.className = 'summary-card';
       card.innerHTML = `
@@ -461,6 +483,23 @@
           accumulator.squadRepos += 1;
         }
 
+        if (repo.security_alerts?.total > 0) {
+          accumulator.securityAlerts += 1;
+        }
+
+        if (repo.pages?.enabled === true) {
+          accumulator.pagesDeployed += 1;
+        }
+
+        if (
+          repo.workflow_status?.has_workflows &&
+          ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(
+            repo.workflow_status?.latest_run?.conclusion
+          )
+        ) {
+          accumulator.ciFailures += 1;
+        }
+
         return accumulator;
       },
       {
@@ -468,7 +507,10 @@
         pendingReviews: 0,
         priorityIssues: 0,
         copilotRepos: 0,
-        squadRepos: 0
+        squadRepos: 0,
+        securityAlerts: 0,
+        pagesDeployed: 0,
+        ciFailures: 0
       }
     );
   }
