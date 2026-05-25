@@ -714,6 +714,16 @@ html[data-theme="light"] .badge.squad {
   opacity: 1;
 }
 
+.badge-link {
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+}
+
+.badge-link:hover .badge {
+  filter: brightness(1.15);
+}
+
 .badge--private {
   background: rgba(15, 23, 42, 0.65);
   border-color: rgba(148, 163, 184, 0.35);

@@ -908,6 +908,17 @@
     return panel;
   }
 
+  function linkBadge(badge, url) {
+    if (!url) return badge;
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+    a.className = 'badge-link';
+    a.appendChild(badge);
+    return a;
+  }
+
   function buildTrafficBadge(repo) {
     if (!repo.traffic) return null;
     const views = repo.traffic.views || {};
@@ -941,14 +952,14 @@
     const issueTooltip = issueCount > 0
       ? `${issueCount} open issue${issueCount === 1 ? '' : 's'} · ${priorityCount} priority`
       : 'No open issues';
-    badges.push(buildBadge('📋', getIssueLabel(repo), priorityCount ? 'warning' : 'neutral', issueTooltip));
+    badges.push(linkBadge(buildBadge('📋', getIssueLabel(repo), priorityCount ? 'warning' : 'neutral', issueTooltip), repo.html_url && `${repo.html_url}/issues`));
 
     const prCount = Number(repo.open_pull_requests_count || 0);
     const pendingCount = getPendingReviewCount(repo);
     const prTooltip = prCount > 0
       ? `${prCount} open pull request${prCount === 1 ? '' : 's'} · ${pendingCount} pending review`
       : 'No open pull requests';
-    badges.push(buildBadge('👀', getReviewLabel(repo), pendingCount ? 'warning' : 'neutral', prTooltip));
+    badges.push(linkBadge(buildBadge('👀', getReviewLabel(repo), pendingCount ? 'warning' : 'neutral', prTooltip), repo.html_url && `${repo.html_url}/pulls`));
 
     const licenseBadge = buildLicenseBadge(repo);
     if (licenseBadge) badges.push(licenseBadge);
@@ -1034,12 +1045,12 @@
     const releaseTooltip = release.latest_published_at
       ? `Released ${formatAbsoluteDate(release.latest_published_at)}`
       : null;
-    return buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success', releaseTooltip);
+    return linkBadge(buildBadge('🚀', getReleaseLabel(release), needsRelease(repo) ? 'warning' : 'success', releaseTooltip), repo.html_url && `${repo.html_url}/releases`);
   }
 
   function buildDiscussionsBadge(repo) {
     if (!repo.discussions_enabled) return null;
-    return buildBadge('💬', 'Discussions', 'neutral', 'Discussions are enabled for this repo');
+    return linkBadge(buildBadge('💬', 'Discussions', 'neutral', 'Discussions are enabled for this repo'), repo.html_url && `${repo.html_url}/discussions`);
   }
 
   function buildPagesBadge(repo) {
@@ -1075,7 +1086,7 @@
     const count = repo.non_default_branch_count;
     if (!count || count <= 1) return null;
     const tone = count > 10 ? 'warning' : 'neutral';
-    return buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone, `${count} non-default branch${count === 1 ? '' : 'es'}`);
+    return linkBadge(buildBadge('🌿', `${count} branch${count === 1 ? '' : 'es'}`, tone, `${count} non-default branch${count === 1 ? '' : 'es'}`), repo.html_url && `${repo.html_url}/branches`);
   }
 
   function buildCodeScanBadge(repo) {
@@ -1218,7 +1229,7 @@
     if (low > 0) tooltipParts.push(`${low} low`);
     const tooltip = tooltipParts.join(' · ');
 
-    return buildBadge('🔒', label, tone, tooltip);
+    return linkBadge(buildBadge('🔒', label, tone, tooltip), repo.html_url && `${repo.html_url}/security/dependabot`);
   }
 
   function buildWorkflowBadge(repo) {
