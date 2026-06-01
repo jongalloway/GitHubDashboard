@@ -54,14 +54,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        shell: bash
-        run: |
-          if npm ci --prefer-offline --no-audit; then
-            echo "Installed dependencies with npm ci"
-          else
-            echo "npm ci failed (likely lockfile drift); falling back to npm install"
-            npm install --prefer-offline --no-audit
-          fi
+        run: npm ci --prefer-offline --no-audit
 
       - name: Run tests
         run: npm test

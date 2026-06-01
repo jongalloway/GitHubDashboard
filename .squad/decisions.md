@@ -32,7 +32,7 @@ Use `test/` as the single canonical Vitest directory for default local and CI ru
 Keep `npm test` mapped to `vitest run` as the strict default lane and avoid requiring `jsdom` in the baseline path.
 
 ### D008: CI Watches Canonical Test Inputs (Fenster, 2026-06-01)
-Align `ci-tests.yml` to monitor only canonical test inputs (`test/**` and `vitest.config.js`) and execute `npm test` directly to enforce failures.
+Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config.js`, `package*.json`) as well as source paths that tests exercise (`js/**`, `css/**`, `scripts/**`, `data/**`, `index.html`, `manifest.json`, `sw.js`) and the workflow file itself, then execute `npm test` directly to enforce failures.
 
 ### D009: CI Test Workflow Separation From Pages Deployment (Fenster, 2026-06-01)
 Run tests in dedicated `ci-tests.yml` instead of embedding test execution into `update-dashboard.yml`, preserving clean branch-aware validation and deployment behavior.

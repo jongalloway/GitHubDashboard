@@ -60,13 +60,15 @@ describe('GHD.Cache', () => {
     expect(window.GHD.Cache.isHardStale(entry)).toBe(true);
   });
 
-  it('returns null for schema mismatch and clears cache', () => {
+  it('returns null for schema mismatch', () => {
     localStorage.setItem(
       'ghd.private.cache.v1',
       JSON.stringify({ schemaVersion: 999, dashboard: { repo_count: 1 } })
     );
     expect(window.GHD.Cache.readCache()).toBeNull();
+  });
 
+  it('returns null after clearCache', () => {
     window.GHD.Cache.writeCache({ owner: 'jon', dashboard: { repo_count: 1 } });
     expect(window.GHD.Cache.readCache()).toBeTruthy();
     window.GHD.Cache.clearCache();
