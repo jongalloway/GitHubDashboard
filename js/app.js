@@ -51,6 +51,7 @@
   let _liveViewEnabled = false;
   let _refreshInFlight = false;
   let _lastAutoRefreshAt = 0;
+  let _authUIState = 'public';
 
   // ── Pin / Close / Notes / Release-NA state ────────────────
   const PINNED_KEY = 'ghd-pinned';
@@ -238,6 +239,7 @@
 
       if (root.headerNote) root.headerNote.textContent = `@${owner} \u00b7 Public repos`;
       if (root.refreshMeta) {
+        root.refreshMeta.setAttribute('aria-live', 'polite');
         root.refreshMeta.innerHTML = `
           <span class="refresh-inline">
             Showing public repos
@@ -296,6 +298,8 @@
   }
 
   function _setAuthUI(state) {
+    _authUIState = state;
+
     if (root.signInBtn) root.signInBtn.hidden = (state !== 'public');
     if (root.signOutBtn) root.signOutBtn.hidden = (state !== 'private');
     if (root.refreshBtn) root.refreshBtn.hidden = false;
@@ -327,6 +331,15 @@
     _syncLiveRefreshTimer();
   }
 
+  function _getPostRefreshAuthUIState() {
+    const Auth = window.GHD && window.GHD.Auth;
+    const Cache = window.GHD && window.GHD.Cache;
+
+    if (!Auth || !Auth.isAuthenticated()) return 'public';
+    if (_authUIState === 'private' || _authUIState === 'public') return _authUIState;
+    return Cache && Cache.readCache() ? 'private' : 'public';
+  }
+
   // ── Auth event handlers ────────────────────────────────────
 
   async function _handleSignIn() {
@@ -339,7 +352,7 @@
     try {
       await _backgroundRefresh();
     } finally {
-      _setAuthUI(Auth.isAuthenticated() ? 'private' : 'public');
+      _setAuthUI(_getPostRefreshAuthUIState());
     }
   }
 
@@ -357,7 +370,7 @@
     _setAuthUI('refreshing');
     if (Auth && Auth.isAuthenticated()) {
       await _backgroundRefresh();
-      _setAuthUI('private');
+      _setAuthUI(_getPostRefreshAuthUIState());
     } else {
       window.location.reload();
     }
@@ -385,7 +398,7 @@
 
   function _syncLiveRefreshTimer() {
     const Auth = window.GHD && window.GHD.Auth;
-    const shouldRun = Boolean(_liveViewEnabled && Auth && Auth.isAuthenticated());
+    const shouldRun = Boolean(_liveViewEnabled && Auth && Auth.isAuthenticated() && _authUIState === 'private');
 
     if (!shouldRun) {
       _stopLiveRefreshTimer();
@@ -419,7 +432,7 @@
     try {
       await _backgroundRefresh();
     } finally {
-      _setAuthUI(Auth.isAuthenticated() ? 'private' : 'public');
+      _setAuthUI(_getPostRefreshAuthUIState());
     }
   }
 
@@ -448,6 +461,7 @@
       if (generatedAt) {
         _setRefreshTimestamp(generatedAt, 'Last private refresh');
       } else {
+        root.refreshMeta.setAttribute('aria-live', 'polite');
         root.refreshMeta.innerHTML = `
           <strong>Last private refresh</strong><br />
           <span class="refresh-inline">Fetching latest data…</span>
@@ -519,6 +533,7 @@
     _lastGeneratedAt = generatedAt;
     _lastRefreshLabel = label;
     _lastAutoRefreshAt = Date.now();
+    if (root.refreshMeta) root.refreshMeta.setAttribute('aria-live', 'off');
     _renderRefreshAge();
     if (_refreshTimerId) clearInterval(_refreshTimerId);
     _refreshTimerId = setInterval(_renderRefreshAge, 60 * 1000);
@@ -1524,7 +1539,10 @@
     root.repoGrid.hidden = true;
     root.repoGrid.innerHTML = '';
     if (root.headerNote) root.headerNote.textContent = 'No account connected';
-    if (root.refreshMeta) root.refreshMeta.textContent = '';
+    if (root.refreshMeta) {
+      root.refreshMeta.setAttribute('aria-live', 'polite');
+      root.refreshMeta.textContent = '';
+    }
     root.stateRegion.innerHTML = `
       <article class="state-card connect">
         <h3>Connect your GitHub account</h3>
@@ -1552,6 +1570,7 @@
     `;
 
     root.headerNote.textContent = 'Configured account unavailable';
+    root.refreshMeta.setAttribute('aria-live', 'polite');
     root.refreshMeta.textContent = 'Last refresh unavailable';
   }
 
