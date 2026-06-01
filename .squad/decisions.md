@@ -22,3 +22,17 @@ Ship the dashboard UI as a plain static asset bundle (`index.html`, `css/style.c
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+## 2026-06 Testing Consolidation Decisions
+
+### D006: Canonical Test Directory And Node Vitest Lane (McManus, 2026-06-01)
+Use `test/` as the single canonical Vitest directory for default local and CI runtime, with `vitest.config.js` targeting `test/**/*.test.js` under `environment: 'node'`.
+
+### D007: Minimal Default Test Command Contract (McManus, 2026-06-01)
+Keep `npm test` mapped to `vitest run` as the strict default lane and avoid requiring `jsdom` in the baseline path.
+
+### D008: CI Watches Canonical Test Inputs (Fenster, 2026-06-01)
+Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config.js`, `package*.json`) as well as source paths that tests exercise (`js/**`, `css/**`, `scripts/**`, `data/**`, `index.html`, `manifest.json`, `sw.js`) and the workflow file itself, then execute `npm test` directly to enforce failures.
+
+### D009: CI Test Workflow Separation From Pages Deployment (Fenster, 2026-06-01)
+Run tests in dedicated `ci-tests.yml` instead of embedding test execution into `update-dashboard.yml`, preserving clean branch-aware validation and deployment behavior.

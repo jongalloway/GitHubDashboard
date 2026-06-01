@@ -37,3 +37,16 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - `scripts/fetch-data.js` kept intact for local development; `data/` remains gitignored.
 - README setup reduced from 5 config steps to 3 infrastructure steps + "sign in in the UI" — no repository variables needed.
 - Decision written to `.squad/decisions/inbox/fenster-client-only-architecture.md`.
+
+## Learnings (2026-06-01 CI Test Wiring)
+
+- Added a dedicated `.github/workflows/ci-tests.yml` workflow instead of changing deploy flow, so GitHub Pages behavior in `update-dashboard.yml` remains isolated and predictable.
+- CI tests now run on both `push` and `pull_request`, but only for code-relevant paths (`js/**`, `css/**`, `scripts/**`, top-level app entry files, and package manifests) to keep runtime fast.
+- Used `actions/setup-node@v6` with npm cache and `npm ci --prefer-offline --no-audit` to keep cold-start and install time low.
+- Test execution is `npm test --if-present`, which aligns with expected frontend test script adoption and avoids breaking CI before test scripts are introduced.
+
+## Learnings (2026-06-01 CI Canonical Test System)
+
+- Standardized CI trigger paths to the canonical Vitest test directory `test/**` and removed duplicate watcher coverage for `tests/**`.
+- Standardized test config trigger coverage to `vitest.config.js` only, matching repository configuration.
+- Switched CI execution from `npm test --if-present` to `npm test` now that the canonical test script exists in `package.json`, making failures visible instead of silently skipping test execution.
