@@ -32,12 +32,25 @@
     viewBadge: document.querySelector('#view-badge'),
     signInBtn: document.querySelector('#sign-in-btn'),
     signOutBtn: document.querySelector('#sign-out-btn'),
-    refreshBtn: document.querySelector('#refresh-btn')
+    refreshBtn: document.querySelector('#refresh-btn'),
+    liveToggleBtn: document.querySelector('#live-toggle-btn')
   };
+
+  const LIVE_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+  const AUTO_REFRESH_KEY = 'ghd-auto-refresh';
 
   // Module-level auth state
   let configuredOwner = null;
   let _resolvedOwner; // undefined = not yet resolved, null = resolved but not found
+
+  // Refresh-age ticker: keeps the "Last refresh" relative time current
+  let _lastGeneratedAt = null;
+  let _lastRefreshLabel = null;
+  let _refreshTimerId = null;
+  let _liveRefreshTimerId = null;
+  let _liveViewEnabled = false;
+  let _refreshInFlight = false;
+  let _lastAutoRefreshAt = 0;
 
   // ── Pin / Close / Notes / Release-NA state ────────────────
   const PINNED_KEY = 'ghd-pinned';
@@ -116,6 +129,7 @@
   async function init() {
     renderSummarySkeleton();
     _initAuthControls();
+    _initLiveView();
 
     const Auth = window.GHD && window.GHD.Auth;
     const Cache = window.GHD && window.GHD.Cache;
@@ -146,7 +160,8 @@
         }
       } else {
         Cache.clearCache();
-        _setAuthUI('private');
+        _setAuthUI('refreshing');
+        _updatePrivateHeader(Auth.getSession()?.owner, null);
         _backgroundRefresh();
       }
     } else {
@@ -252,6 +267,32 @@
     if (root.refreshBtn) {
       root.refreshBtn.addEventListener('click', _handleRefresh);
     }
+    if (root.liveToggleBtn) {
+      root.liveToggleBtn.addEventListener('click', _handleLiveToggle);
+    }
+  }
+
+  function _initLiveView() {
+    try {
+      _liveViewEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === '1'
+        || localStorage.getItem('ghd-live-view') === '1';
+    } catch (_) {
+      _liveViewEnabled = false;
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!_liveViewEnabled) return;
+
+      const Auth = window.GHD && window.GHD.Auth;
+      if (!Auth || !Auth.isAuthenticated()) return;
+
+      if (!_lastAutoRefreshAt || (Date.now() - _lastAutoRefreshAt) >= LIVE_REFRESH_INTERVAL_MS) {
+        _runLiveRefreshCycle();
+      }
+    });
+
+    _syncLiveViewButton();
   }
 
   function _setAuthUI(state) {
@@ -276,6 +317,14 @@
       root.refreshBtn.disabled = false;
       root.refreshBtn.classList.remove('spinning');
     }
+
+    if (root.liveToggleBtn) {
+      root.liveToggleBtn.hidden = (state === 'public');
+      root.liveToggleBtn.disabled = (state === 'refreshing');
+    }
+
+    _syncLiveViewButton();
+    _syncLiveRefreshTimer();
   }
 
   // ── Auth event handlers ────────────────────────────────────
@@ -285,15 +334,20 @@
     if (!Auth) return;
     const result = await Auth.signIn();
     if (!result) return;
-    _setAuthUI('private');
+    _setAuthUI('refreshing');
     _updatePrivateHeader(result.login, null);
-    await _backgroundRefresh();
+    try {
+      await _backgroundRefresh();
+    } finally {
+      _setAuthUI(Auth.isAuthenticated() ? 'private' : 'public');
+    }
   }
 
   function _handleSignOut() {
     const Auth = window.GHD && window.GHD.Auth;
     if (Auth) Auth.signOut();
     _setAuthUI('public');
+    _stopLiveRefreshTimer();
     // Re-render public data by reloading
     window.location.reload();
   }
@@ -306,6 +360,66 @@
       _setAuthUI('private');
     } else {
       window.location.reload();
+    }
+  }
+
+  function _handleLiveToggle() {
+    _liveViewEnabled = !_liveViewEnabled;
+    try {
+      localStorage.setItem(AUTO_REFRESH_KEY, _liveViewEnabled ? '1' : '0');
+      localStorage.removeItem('ghd-live-view');
+    } catch (_) {}
+
+    _syncLiveViewButton();
+    _syncLiveRefreshTimer();
+  }
+
+  function _syncLiveViewButton() {
+    if (!root.liveToggleBtn) return;
+    root.liveToggleBtn.textContent = `Auto refresh: ${_liveViewEnabled ? 'On' : 'Off'}`;
+    root.liveToggleBtn.classList.toggle('is-active', _liveViewEnabled);
+    root.liveToggleBtn.setAttribute('aria-pressed', _liveViewEnabled ? 'true' : 'false');
+    root.liveToggleBtn.title = `Auto refresh runs every hour (${_liveViewEnabled ? 'currently on' : 'currently off'})`;
+    root.liveToggleBtn.setAttribute('aria-label', `Auto refresh ${_liveViewEnabled ? 'on' : 'off'}. Runs every hour.`);
+  }
+
+  function _syncLiveRefreshTimer() {
+    const Auth = window.GHD && window.GHD.Auth;
+    const shouldRun = Boolean(_liveViewEnabled && Auth && Auth.isAuthenticated());
+
+    if (!shouldRun) {
+      _stopLiveRefreshTimer();
+      return;
+    }
+
+    if (_liveRefreshTimerId) return;
+
+    _lastAutoRefreshAt = Date.now();
+    _liveRefreshTimerId = setInterval(() => {
+      _runLiveRefreshCycle();
+    }, LIVE_REFRESH_INTERVAL_MS);
+  }
+
+  function _stopLiveRefreshTimer() {
+    if (_liveRefreshTimerId) {
+      clearInterval(_liveRefreshTimerId);
+      _liveRefreshTimerId = null;
+    }
+  }
+
+  async function _runLiveRefreshCycle() {
+    if (!_liveViewEnabled || document.visibilityState !== 'visible') return;
+
+    const Auth = window.GHD && window.GHD.Auth;
+    if (!Auth || !Auth.isAuthenticated()) return;
+    if (_refreshInFlight) return;
+
+    _lastAutoRefreshAt = Date.now();
+    _setAuthUI('refreshing');
+    try {
+      await _backgroundRefresh();
+    } finally {
+      _setAuthUI(Auth.isAuthenticated() ? 'private' : 'public');
     }
   }
 
@@ -330,13 +444,15 @@
     if (root.headerNote) {
       root.headerNote.textContent = `Configured account: @${owner || configuredOwner || '—'} · Private data`;
     }
-    if (root.refreshMeta && generatedAt) {
-      const label = formatAbsoluteDate(generatedAt);
-      const relative = formatRelativeDate(generatedAt);
-      root.refreshMeta.innerHTML = `
-        <strong>Last private refresh</strong><br />
-        <span class="refresh-inline">${label}${relative ? ` · ${relative}` : ''}</span>
-      `;
+    if (root.refreshMeta) {
+      if (generatedAt) {
+        _setRefreshTimestamp(generatedAt, 'Last private refresh');
+      } else {
+        root.refreshMeta.innerHTML = `
+          <strong>Last private refresh</strong><br />
+          <span class="refresh-inline">Fetching latest data…</span>
+        `;
+      }
     }
   }
 
@@ -346,42 +462,49 @@
     const Client = window.GHD && window.GHD.GitHubClient;
     if (!Auth || !Cache || !Client) return;
 
-    let token;
-    try {
-      token = await Auth.getValidToken();
-    } catch (_) {
-      _setAuthUI('public');
-      return;
-    }
-
-    const owner = configuredOwner || Auth.getSession()?.owner;
-    if (!owner) return;
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
 
     try {
-      const payload = await Client.fetchPrivateDashboard(token, owner);
-      Cache.writeCache({
-        source: 'private',
-        owner,
-        selection: {
-          maxRepos: 10,
-          excludeForks: true,
-          excludeArchived: true,
-          sort: 'pushed_or_updated_desc'
-        },
-        repoCatalog: payload.repoCatalog,
-        dashboard: payload.dashboard
-      });
-      _renderFromCache(Cache.readCache());
-      _setAuthUI('private');
-    } catch (_) {
-      // Keep existing render if refresh fails; stay in private mode if cache valid
-      const existing = Cache.readCache();
-      if (!existing) {
-        renderConnectState();
+      let token;
+      try {
+        token = await Auth.getValidToken();
+      } catch (_) {
         _setAuthUI('public');
-      } else {
-        _setAuthUI('private');
+        return;
       }
+
+      const owner = configuredOwner || Auth.getSession()?.owner;
+      if (!owner) return;
+
+      try {
+        const payload = await Client.fetchPrivateDashboard(token, owner);
+        Cache.writeCache({
+          source: 'private',
+          owner,
+          selection: {
+            maxRepos: 10,
+            excludeForks: true,
+            excludeArchived: true,
+            sort: 'pushed_or_updated_desc'
+          },
+          repoCatalog: payload.repoCatalog,
+          dashboard: payload.dashboard
+        });
+        _renderFromCache(Cache.readCache());
+        _setAuthUI('private');
+      } catch (_) {
+        // Keep existing render if refresh fails; stay in private mode if cache valid
+        const existing = Cache.readCache();
+        if (!existing) {
+          renderConnectState();
+          _setAuthUI('public');
+        } else {
+          _setAuthUI('private');
+        }
+      }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -389,11 +512,25 @@
     const owner = data.owner ? `@${data.owner}` : 'configured GitHub user';
     root.headerNote.textContent = `Configured account: ${owner}`;
 
-    const generatedLabel = formatAbsoluteDate(data.generated_at);
-    const relativeRefresh = formatRelativeDate(data.generated_at);
+    _setRefreshTimestamp(data.generated_at, 'Last refresh');
+  }
+
+  function _setRefreshTimestamp(generatedAt, label) {
+    _lastGeneratedAt = generatedAt;
+    _lastRefreshLabel = label;
+    _lastAutoRefreshAt = Date.now();
+    _renderRefreshAge();
+    if (_refreshTimerId) clearInterval(_refreshTimerId);
+    _refreshTimerId = setInterval(_renderRefreshAge, 60 * 1000);
+  }
+
+  function _renderRefreshAge() {
+    if (!root.refreshMeta || !_lastGeneratedAt) return;
+    const abs = formatAbsoluteDate(_lastGeneratedAt);
+    const rel = formatRelativeDate(_lastGeneratedAt);
     root.refreshMeta.innerHTML = `
-      <strong>Last refresh</strong><br />
-      <span class="refresh-inline">${generatedLabel}${relativeRefresh ? ` · ${relativeRefresh}` : ''}</span>
+      <strong>${_lastRefreshLabel || 'Last refresh'}</strong><br />
+      <span class="refresh-inline">${abs}${rel ? ` · ${rel}` : ''}</span>
     `;
   }
 

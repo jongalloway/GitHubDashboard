@@ -1019,11 +1019,11 @@ code {
 .view-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.3rem 0.75rem;
+  padding: 0.45rem 1rem;
   border-radius: var(--radius-sm);
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
   border: 1px solid transparent;
 }
 
@@ -1062,6 +1062,12 @@ code {
 .auth-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.live-toggle-btn.is-active {
+  border-color: rgba(52, 211, 153, 0.42);
+  color: var(--success);
+  background: var(--success-soft);
 }
 
 .auth-btn--secondary {
