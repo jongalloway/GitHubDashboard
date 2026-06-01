@@ -9,15 +9,9 @@ const RELEASE_OVERDUE_THRESHOLD = 10;
 const STALE_DAYS = 14;
 const PRIORITY_ISSUE_LIMIT = 3;
 
-const owner = process.env.DASHBOARD_OWNER?.trim();
 const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || '';
 const generatedAt = process.env.GENERATED_AT_OVERRIDE?.trim() || new Date().toISOString();
 const now = new Date(generatedAt);
-
-if (!owner) {
-  console.error('DASHBOARD_OWNER is required. Configure it as a repository variable in GitHub Actions.');
-  process.exit(1);
-}
 
 const defaultHeaders = {
   Accept: 'application/vnd.github+json',
@@ -305,6 +299,21 @@ function summarizeNextSteps({ releaseOverdue, pendingReviewCount, triageIssueCou
   }
 
   return 'Repository is quiet right now.';
+}
+
+function computeNextStepState(signals, hasRecentActivity) {
+  if (Array.isArray(signals) && signals.length > 0) {
+    return {
+      status: 'needs-attention',
+      signals
+    };
+  }
+
+  const fallback = hasRecentActivity ? 'active' : 'quiet';
+  return {
+    status: fallback,
+    signals: [fallback]
+  };
 }
 
 async function getLatestRelease(fullName, defaultBranch) {
@@ -714,8 +723,7 @@ async function buildRepoRecord(repo) {
     );
     const hasRecentActivity = isRecent(recentActivityAt);
 
-    const nextStepSignals = signals.length > 0 ? signals : [hasRecentActivity ? 'active' : 'quiet'];
-    const nextStepStatus = signals.length > 0 ? 'needs-attention' : hasRecentActivity ? 'active' : 'quiet';
+    const nextStepState = computeNextStepState(signals, hasRecentActivity);
 
     return {
       name: repo.name,
@@ -768,8 +776,8 @@ async function buildRepoRecord(repo) {
         items: pendingReviewItems
       },
       next_steps: {
-        status: nextStepStatus,
-        signals: nextStepSignals,
+        status: nextStepState.status,
+        signals: nextStepState.signals,
         summary: summarizeNextSteps({
           releaseOverdue,
           pendingReviewCount: pendingReviewItems.length,
@@ -855,6 +863,12 @@ async function buildRepoRecord(repo) {
 }
 
 async function main() {
+  const owner = process.env.DASHBOARD_OWNER?.trim();
+  if (!owner) {
+    console.error('DASHBOARD_OWNER is required. Configure it as a repository variable in GitHub Actions.');
+    process.exit(1);
+  }
+
   log(`Fetching repositories for ${owner}`);
   const repos = await paginate(`/users/${owner}/repos?sort=updated&direction=desc&per_page=100&type=owner`, {
     context: `Fetching repositories for ${owner}`
@@ -887,7 +901,21 @@ async function main() {
   log(`Wrote ${records.length} repositories to ${outputPath}`);
 }
 
-main().catch((error) => {
-  console.error(`[fetch-data] ${error.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[fetch-data] ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  normalizeLabels,
+  hasCopilotSignal,
+  getPullSource,
+  issuePriority,
+  buildPriorityIssues,
+  summarizeNextSteps,
+  computeNextStepState,
+  daysBetween,
+  isRecent
+};

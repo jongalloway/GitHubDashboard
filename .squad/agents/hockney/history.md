@@ -12,3 +12,4 @@
 - Test plan includes validation for Keyser's PRD requirements, Fenster's data pipeline integration, and McManus's frontend rendering contract.
 - Scribe consolidated all team decisions (D001-D005) into `.squad/decisions.md` for official project record.
 - 2026-05-23T03:38:13-07:00: Auth implementation session — appended 98 additional test cases covering Device Flow auth, token management, API integration, caching, sign-in/sign-out, error scenarios, security, and browser compatibility to `docs/test-plan.md`. Total test coverage now 246 cases.
+- 2026-06-01T00:00:00Z: Reviewed consolidated single test system and CI wiring. Verified canonical `test/` directory alignment in `vitest.config.js` and `.github/workflows/ci-tests.yml`, confirmed `npm test` runs 4 files / 15 tests in ~1.17s, and flagged lightweight suite plus remaining integration/E2E risk areas.

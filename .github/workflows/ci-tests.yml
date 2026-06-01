@@ -1,0 +1,67 @@
+name: CI Tests
+
+on:
+  push:
+    paths:
+      - index.html
+      - manifest.json
+      - sw.js
+      - js/**
+      - css/**
+      - scripts/**
+      - test/**
+      - data/**
+      - vitest.config.js
+      - package.json
+      - package-lock.json
+      - .github/workflows/ci-tests.yml
+  pull_request:
+    paths:
+      - index.html
+      - manifest.json
+      - sw.js
+      - js/**
+      - css/**
+      - scripts/**
+      - test/**
+      - data/**
+      - vitest.config.js
+      - package.json
+      - package-lock.json
+      - .github/workflows/ci-tests.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if npm ci --prefer-offline --no-audit; then
+            echo "Installed dependencies with npm ci"
+          else
+            echo "npm ci failed (likely lockfile drift); falling back to npm install"
+            npm install --prefer-offline --no-audit
+          fi
+
+      - name: Run tests
+        run: npm test
