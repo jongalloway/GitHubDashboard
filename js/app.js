@@ -531,6 +531,7 @@
     if (!err) return false;
     if (err.status === 401) return true;
     if (err.status !== 403) return false;
+    if (typeof err.isRateLimited !== 'boolean') return false;
     return !err.isRateLimited;
   }
 
