@@ -531,8 +531,7 @@
     if (!err) return false;
     if (err.status === 401) return true;
     if (err.status !== 403) return false;
-    if (err.isRateLimited) return false;
-    return Boolean(err.ssoRequired);
+    return !err.isRateLimited;
   }
 
   async function _switchToPublicView() {
