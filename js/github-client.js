@@ -56,11 +56,17 @@ window.GHD = window.GHD || {};
     return match ? match[1] : null;
   }
 
+  function _createApiError(prefix, status, url) {
+    const error = new Error(`${prefix} (${status}): ${url}`);
+    error.status = status;
+    return error;
+  }
+
   async function _fetchJson(url, token) {
     const response = await fetch(url, { headers: _headers(token) });
     if (response.status === 404 || response.status === 409) return null;
     if (!response.ok) {
-      throw new Error(`GitHub API failed (${response.status}): ${url}`);
+      throw _createApiError('GitHub API failed', response.status, url);
     }
     return response.json();
   }
@@ -72,7 +78,7 @@ window.GHD = window.GHD || {};
       const response = await fetch(nextUrl, { headers: _headers(token) });
       if (response.status === 404 || response.status === 409) break;
       if (!response.ok) {
-        throw new Error(`Paginate failed (${response.status}): ${nextUrl}`);
+        throw _createApiError('Paginate failed', response.status, nextUrl);
       }
       const page = await response.json();
       if (Array.isArray(page)) items.push(...page);

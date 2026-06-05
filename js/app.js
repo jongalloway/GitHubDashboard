@@ -484,7 +484,7 @@
       try {
         token = await Auth.getValidToken();
       } catch (_) {
-        _setAuthUI('public');
+        await _switchToPublicView();
         return;
       }
 
@@ -507,7 +507,12 @@
         });
         _renderFromCache(Cache.readCache());
         _setAuthUI('private');
-      } catch (_) {
+      } catch (err) {
+        if (_isAuthFailureError(err)) {
+          Auth.signOut();
+          await _switchToPublicView();
+          return;
+        }
         // Keep existing render if refresh fails; stay in private mode if cache valid
         const existing = Cache.readCache();
         if (!existing) {
@@ -519,6 +524,20 @@
       }
     } finally {
       _refreshInFlight = false;
+    }
+  }
+
+  function _isAuthFailureError(err) {
+    return Boolean(err && (err.status === 401 || err.status === 403));
+  }
+
+  async function _switchToPublicView() {
+    const owner = configuredOwner || await resolveOwner();
+    if (owner) {
+      await _loadPublicDashboard(owner);
+    } else {
+      renderConnectState();
+      _setAuthUI('public');
     }
   }
 

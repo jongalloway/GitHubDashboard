@@ -63,9 +63,16 @@ window.GHD = window.GHD || {};
           Accept: 'application/vnd.github+json'
         }
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        return {
+          login: null,
+          authError: response.status === 401 || response.status === 403
+        };
+      }
       const user = await response.json();
-      if (!user.login) return null;
+      if (!user.login) {
+        return { login: null, authError: false };
+      }
 
       // Detect write-capable scope for Quick Issue feature.
       // Classic PATs return X-OAuth-Scopes; fine-grained PATs do not (null header).
@@ -78,9 +85,9 @@ window.GHD = window.GHD || {};
         _saveWriteAccess(scopes.includes('repo') || scopes.includes('public_repo'));
       }
 
-      return user.login;
+      return { login: user.login, authError: false };
     } catch (_) {
-      return null;
+      return { login: null, authError: false };
     }
   }
 
@@ -165,7 +172,7 @@ window.GHD = window.GHD || {};
         submitBtn.textContent = 'Verifying…';
         if (errorEl) errorEl.hidden = true;
 
-        const login = await _validateToken(token);
+        const { login } = await _validateToken(token);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Sign in';
 
@@ -230,7 +237,18 @@ window.GHD = window.GHD || {};
   function getValidToken() {
     const token = _loadToken();
     if (!token) return Promise.reject(new Error('Not authenticated.'));
-    return Promise.resolve(token);
+    return _validateToken(token).then(({ login, authError }) => {
+      if (login) {
+        _saveLogin(login);
+        return token;
+      }
+      if (authError) {
+        _clearToken();
+        if (GHD.Cache) GHD.Cache.clearCache();
+        throw new Error('PAT expired or revoked. Sign in again.');
+      }
+      return token;
+    });
   }
 
   /**
@@ -250,10 +268,11 @@ window.GHD = window.GHD || {};
   const ready = (async function () {
     const token = _loadToken();
     if (!token) return;
-    const login = await _validateToken(token);
-    if (!login) {
+    const { login, authError } = await _validateToken(token);
+    if (authError) {
       _clearToken();
-    } else {
+      if (GHD.Cache) GHD.Cache.clearCache();
+    } else if (login) {
       _saveLogin(login);
     }
   })();

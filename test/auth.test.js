@@ -83,4 +83,54 @@ describe('GHD.Auth', () => {
     expect(localStorage.getItem('ghd_login')).toBeNull();
     expect(localStorage.getItem('ghd_write')).toBeNull();
   });
+
+  it('clears expired token during startup validation', async () => {
+    global.localStorage = createStorage({
+      ghd_token: 'expired-token',
+      ghd_login: 'jon-g',
+      ghd_write: '1'
+    });
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      headers: { get: () => null }
+    }));
+    global.window = { GHD: {} };
+
+    await import('../js/auth.js');
+    await window.GHD.Auth.ready;
+
+    expect(window.GHD.Auth.isAuthenticated()).toBe(false);
+    expect(localStorage.getItem('ghd_token')).toBeNull();
+    expect(localStorage.getItem('ghd_login')).toBeNull();
+    expect(localStorage.getItem('ghd_write')).toBeNull();
+  });
+
+  it('clears token and rejects when PAT expires during refresh validation', async () => {
+    global.localStorage = createStorage({
+      ghd_token: 'test-token',
+      ghd_login: 'jon-g'
+    });
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ login: 'jon-g' }),
+        headers: { get: () => null }
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: { get: () => null }
+      });
+    global.window = { GHD: {} };
+
+    await import('../js/auth.js');
+    await window.GHD.Auth.ready;
+
+    await expect(window.GHD.Auth.getValidToken()).rejects.toThrow('PAT expired or revoked. Sign in again.');
+    expect(window.GHD.Auth.isAuthenticated()).toBe(false);
+    expect(localStorage.getItem('ghd_token')).toBeNull();
+  });
 });
