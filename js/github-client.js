@@ -56,9 +56,19 @@ window.GHD = window.GHD || {};
     return match ? match[1] : null;
   }
 
-  function _createApiError(prefix, status, url) {
+  function _createApiError(prefix, response, url) {
+    const status = response.status;
+    const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+    const retryAfter = response.headers.get('retry-after');
+    const ssoHeader = response.headers.get('x-github-sso');
     const error = new Error(`${prefix} (${status}): ${url}`);
     error.status = status;
+    error.url = url;
+    error.rateLimitRemaining = rateLimitRemaining;
+    error.retryAfter = retryAfter;
+    error.ssoHeader = ssoHeader;
+    error.isRateLimited = rateLimitRemaining === '0' || retryAfter !== null;
+    error.ssoRequired = Boolean(ssoHeader);
     return error;
   }
 
@@ -66,7 +76,7 @@ window.GHD = window.GHD || {};
     const response = await fetch(url, { headers: _headers(token) });
     if (response.status === 404 || response.status === 409) return null;
     if (!response.ok) {
-      throw _createApiError('GitHub API failed', response.status, url);
+      throw _createApiError('GitHub API failed', response, url);
     }
     return response.json();
   }
@@ -78,7 +88,7 @@ window.GHD = window.GHD || {};
       const response = await fetch(nextUrl, { headers: _headers(token) });
       if (response.status === 404 || response.status === 409) break;
       if (!response.ok) {
-        throw _createApiError('Paginate failed', response.status, nextUrl);
+        throw _createApiError('Paginate failed', response, nextUrl);
       }
       const page = await response.json();
       if (Array.isArray(page)) items.push(...page);

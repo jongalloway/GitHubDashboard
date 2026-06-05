@@ -63,10 +63,13 @@ window.GHD = window.GHD || {};
           Accept: 'application/vnd.github+json'
         }
       });
+      const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+      const retryAfter = response.headers.get('Retry-After');
+      const isRateLimited = rateLimitRemaining === '0' || retryAfter !== null;
       if (!response.ok) {
         return {
           login: null,
-          authError: response.status === 401 || response.status === 403
+          authError: response.status === 401 || (response.status === 403 && !isRateLimited)
         };
       }
       const user = await response.json();

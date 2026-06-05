@@ -95,7 +95,8 @@ describe('GHD.Auth', () => {
       status: 401,
       headers: { get: () => null }
     }));
-    global.window = { GHD: {} };
+    const clearCache = vi.fn();
+    global.window = { GHD: { Cache: { clearCache } } };
 
     await import('../js/auth.js');
     await window.GHD.Auth.ready;
@@ -104,6 +105,7 @@ describe('GHD.Auth', () => {
     expect(localStorage.getItem('ghd_token')).toBeNull();
     expect(localStorage.getItem('ghd_login')).toBeNull();
     expect(localStorage.getItem('ghd_write')).toBeNull();
+    expect(clearCache).toHaveBeenCalledTimes(1);
   });
 
   it('clears token and rejects when PAT expires during refresh validation', async () => {
@@ -124,7 +126,8 @@ describe('GHD.Auth', () => {
         status: 401,
         headers: { get: () => null }
       });
-    global.window = { GHD: {} };
+    const clearCache = vi.fn();
+    global.window = { GHD: { Cache: { clearCache } } };
 
     await import('../js/auth.js');
     await window.GHD.Auth.ready;
@@ -132,5 +135,6 @@ describe('GHD.Auth', () => {
     await expect(window.GHD.Auth.getValidToken()).rejects.toThrow('PAT expired or revoked. Sign in again.');
     expect(window.GHD.Auth.isAuthenticated()).toBe(false);
     expect(localStorage.getItem('ghd_token')).toBeNull();
+    expect(clearCache).toHaveBeenCalledTimes(1);
   });
 });

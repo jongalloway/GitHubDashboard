@@ -528,7 +528,11 @@
   }
 
   function _isAuthFailureError(err) {
-    return Boolean(err && (err.status === 401 || err.status === 403));
+    if (!err) return false;
+    if (err.status === 401) return true;
+    if (err.status !== 403) return false;
+    if (err.isRateLimited) return false;
+    return Boolean(err.ssoRequired);
   }
 
   async function _switchToPublicView() {
