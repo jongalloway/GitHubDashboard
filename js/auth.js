@@ -63,8 +63,8 @@ window.GHD = window.GHD || {};
           Accept: 'application/vnd.github+json'
         }
       });
-      const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
-      const retryAfter = response.headers.get('Retry-After');
+      const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+      const retryAfter = response.headers.get('retry-after');
       const isRateLimited = rateLimitRemaining === '0' || retryAfter !== null;
       if (!response.ok) {
         return {
