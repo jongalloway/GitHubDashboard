@@ -622,6 +622,34 @@
   function renderHeaderHealthStrip(summary = {}) {
     if (!root.headerHealthStrip) return;
 
+    const model = _buildHeaderHealthModel(summary);
+    const rects = model.segments.map((segment) => {
+      return `<rect x="${segment.x.toFixed(2)}" y="0" width="${segment.width.toFixed(2)}" height="12" class="health-strip-segment tone-${segment.tone}" />`;
+    }).join('');
+
+    const legend = model.segments
+      .map((segment) => `
+        <li class="health-strip-legend-item" title="${escapeHtml(segment.label)}: ${segment.value}">
+          <span class="health-strip-swatch tone-${segment.tone}" aria-hidden="true"></span>
+          <span class="health-strip-label">${escapeHtml(segment.shortLabel)}</span>
+          <strong>${segment.value}</strong>
+        </li>
+      `)
+      .join('');
+
+    root.headerHealthStrip.innerHTML = `
+      <svg class="health-strip-svg" viewBox="0 0 100 12" role="img" aria-label="${escapeHtml(model.titleText)}">
+        <title>${escapeHtml(model.titleText)}</title>
+        ${rects}
+      </svg>
+      <ul class="health-strip-legend" aria-label="Header health legend">
+        ${legend}
+      </ul>
+      <span class="sr-only">${escapeHtml(model.srSummary)}</span>
+    `;
+  }
+
+  function _buildHeaderHealthModel(summary = {}) {
     const segments = HEADER_HEALTH_SEGMENTS.map((segment) => {
       const value = _normalizeSummaryMetric(summary[segment.key]);
       return {
@@ -642,7 +670,7 @@
     const baseWidth = total > 0 ? 8 : 25;
     const dynamicWidthBudget = total > 0 ? (100 - (segments.length * baseWidth)) : 0;
     let runningX = 0;
-    const rects = segments.map((segment, index) => {
+    const segmentsWithLayout = segments.map((segment, index) => {
       const dynamicWidth = total > 0
         ? (segment.value / total) * dynamicWidthBudget
         : 0;
@@ -651,29 +679,19 @@
         : (baseWidth + dynamicWidth);
       const x = runningX;
       runningX += width;
-      return `<rect x="${x.toFixed(2)}" y="0" width="${width.toFixed(2)}" height="12" class="health-strip-segment tone-${segment.tone}" />`;
-    }).join('');
+      return {
+        ...segment,
+        x,
+        width
+      };
+    });
 
-    const legend = segments
-      .map((segment) => `
-        <li class="health-strip-legend-item" title="${escapeHtml(segment.label)}: ${segment.value}">
-          <span class="health-strip-swatch tone-${segment.tone}" aria-hidden="true"></span>
-          <span class="health-strip-label">${escapeHtml(segment.shortLabel)}</span>
-          <strong>${segment.value}</strong>
-        </li>
-      `)
-      .join('');
-
-    root.headerHealthStrip.innerHTML = `
-      <svg class="health-strip-svg" viewBox="0 0 100 12" role="img" aria-label="${escapeHtml(titleText)}">
-        <title>${escapeHtml(titleText)}</title>
-        ${rects}
-      </svg>
-      <ul class="health-strip-legend" aria-label="Header health legend">
-        ${legend}
-      </ul>
-      <span class="sr-only">${escapeHtml(srSummary)}</span>
-    `;
+    return {
+      total,
+      titleText,
+      srSummary,
+      segments: segmentsWithLayout
+    };
   }
 
   function _normalizeSummaryMetric(value) {
@@ -1840,4 +1858,11 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
   }
+
+  window.GHD = window.GHD || {};
+  window.GHD.__appTest = {
+    _buildHeaderHealthModel,
+    _normalizeSummaryMetric,
+    _getHealthTone
+  };
 })();
