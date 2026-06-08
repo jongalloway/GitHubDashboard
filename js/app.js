@@ -857,6 +857,7 @@
     const headerRight = document.createElement('div');
     headerRight.className = 'repo-header-right';
     headerRight.appendChild(buildCardActions(repo, isPinned));
+    headerRight.appendChild(buildRepoActivityMeter(repo));
 
     const header = document.createElement('div');
     header.className = 'repo-header';
@@ -874,6 +875,41 @@
 
     card.append(header, buildNextStepPanel(repo, status), badges, grid, buildNotesPanel(repo));
     return card;
+  }
+
+  function buildRepoActivityMeter(repo) {
+    const meter = document.createElement('div');
+    meter.className = 'repo-activity-meter repo-activity-meter--warning';
+    meter.setAttribute('role', 'img');
+    meter.setAttribute('aria-label', 'Repo activity score unavailable.');
+    meter.title = 'Repo activity score unavailable.';
+    meter.textContent = '—';
+
+    const activityMeter = window.GHD && window.GHD.RepoActivityMeter;
+    if (!activityMeter || typeof activityMeter.computeRepoActivityModel !== 'function') {
+      return meter;
+    }
+
+    const model = activityMeter.computeRepoActivityModel(repo);
+    const radius = 12;
+    const circumference = 2 * Math.PI * radius;
+    const progress = circumference * (model.score / 100);
+    const dashOffset = Number((circumference - progress).toFixed(2));
+
+    meter.className = `repo-activity-meter repo-activity-meter--${model.tone}`;
+    meter.setAttribute('aria-label', model.ariaLabel);
+    meter.setAttribute('data-tooltip', model.tooltip);
+    meter.title = model.tooltip;
+    meter.innerHTML = `
+      <svg class="repo-activity-meter-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <circle class="repo-activity-meter-track" cx="16" cy="16" r="${radius}" />
+        <circle class="repo-activity-meter-progress tone-${model.tone}" cx="16" cy="16" r="${radius}" stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${dashOffset}" />
+      </svg>
+      <span class="repo-activity-meter-value">${model.score}</span>
+      <span class="sr-only">${escapeHtml(model.ariaLabel)}</span>
+    `;
+
+    return meter;
   }
 
   function buildCardActions(repo, isPinned) {
