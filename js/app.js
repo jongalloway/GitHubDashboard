@@ -681,6 +681,27 @@
     if (closedRepos.length) {
       root.repoGrid.insertAdjacentElement('afterend', buildClosedSection(closedRepos));
     }
+
+    // S2: Record snapshots after rendering
+    recordRepositorySnapshots(_currentRepos);
+  }
+
+  function recordRepositorySnapshots(repos) {
+    const SnapshotHistory = window.GHD && window.GHD.SnapshotHistory;
+    if (!SnapshotHistory || !Array.isArray(repos)) return;
+
+    repos.forEach(repo => {
+      try {
+        SnapshotHistory.recordSnapshot({
+          repo: repo.name,
+          stars: repo.stargazers_count || 0,
+          watchers: repo.watchers_count || 0,
+          forks: repo.forks_count || 0
+        });
+      } catch (_) {
+        // Silently fail if localStorage is full or other errors occur
+      }
+    });
   }
 
   function buildRepoCard(repo, isPinned = false) {
