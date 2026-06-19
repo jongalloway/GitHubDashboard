@@ -156,7 +156,7 @@
     const tone = getTone(score);
     const topContributions = contributions
       .filter((item) => item.penalty > 0)
-      .sort((left, right) => right.penalty - left.penalty || left.label.localeCompare(right.label));
+      .sort((left, right) => right.penalty - left.penalty || left.label.localeCompare(right.label, 'en'));
 
     const tooltipLines = [
       `Repo Activity Meter: ${score}/100 (${getToneLabel(tone)})`,

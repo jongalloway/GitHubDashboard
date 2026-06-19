@@ -899,6 +899,8 @@
     meter.className = `repo-activity-meter repo-activity-meter--${model.tone}`;
     meter.setAttribute('aria-label', model.ariaLabel);
     meter.setAttribute('data-tooltip', model.tooltip);
+    meter.setAttribute('tabindex', '0');
+    meter.setAttribute('role', 'img');
     meter.title = model.tooltip;
     meter.innerHTML = `
       <svg class="repo-activity-meter-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
