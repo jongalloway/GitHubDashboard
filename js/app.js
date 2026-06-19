@@ -1860,9 +1860,11 @@
   }
 
   window.GHD = window.GHD || {};
-  window.GHD.__appTest = {
-    _buildHeaderHealthModel,
-    _normalizeSummaryMetric,
-    _getHealthTone
-  };
+  if (typeof __GHD_TESTING__ !== 'undefined' && __GHD_TESTING__) {
+    window.GHD.__appTest = {
+      _buildHeaderHealthModel,
+      _normalizeSummaryMetric,
+      _getHealthTone
+    };
+  }
 })();

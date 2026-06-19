@@ -10,6 +10,7 @@ function createDocumentStub() {
 describe('header health strip model', () => {
   beforeEach(async () => {
     vi.resetModules();
+    global.__GHD_TESTING__ = true;
     global.window = { GHD: {} };
     global.document = createDocumentStub();
     await import('../js/app.js');
