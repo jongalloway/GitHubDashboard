@@ -275,17 +275,21 @@
           minute: '2-digit'
         }).format(date);
         title.textContent = `${timeStr}: ${bucket.stars} stars`;
-        svg.appendChild(title);
+        // Store title to attach to corresponding circle
+        bucket._tooltipTitle = title;
       });
     }
 
-    points.forEach(({ x, y }) => {
+    points.forEach(({ x, y, bucket }) => {
       const circle = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'circle') : document.createElement('circle');
       circle.setAttribute('cx', x);
       circle.setAttribute('cy', y);
       circle.setAttribute('r', '2');
       circle.setAttribute('fill', 'var(--accent-color, #0969da)');
       circle.setAttribute('class', 'sparkline-point');
+      if (tooltip && bucket._tooltipTitle) {
+        circle.appendChild(bucket._tooltipTitle);
+      }
       svg.appendChild(circle);
     });
 

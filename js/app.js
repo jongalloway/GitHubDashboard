@@ -684,6 +684,20 @@
 
     // S2: Record snapshots after rendering
     recordRepositorySnapshots(_currentRepos);
+    renderHeaderSparkline(_currentRepos);
+  }
+
+  function renderHeaderSparkline(repos) {
+    const SnapshotHistory = window.GHD && window.GHD.SnapshotHistory;
+    const container = document.querySelector('#header-sparkline');
+    if (!SnapshotHistory || !container || !Array.isArray(repos) || repos.length === 0) return;
+
+    const repoName = repos[0].full_name || repos[0].name;
+    const svg = SnapshotHistory.renderSparkline(repoName, { tooltip: true });
+    if (svg) {
+      container.innerHTML = '';
+      container.appendChild(svg);
+    }
   }
 
   function recordRepositorySnapshots(repos) {
@@ -693,10 +707,10 @@
     repos.forEach(repo => {
       try {
         SnapshotHistory.recordSnapshot({
-          repo: repo.name,
-          stars: repo.stargazers_count || 0,
-          watchers: repo.watchers_count || 0,
-          forks: repo.forks_count || 0
+          repo: repo.full_name || repo.name,
+          stars: repo.open_issues_count || 0,
+          watchers: repo.open_pull_requests_count || 0,
+          forks: 0
         });
       } catch (_) {
         // Silently fail if localStorage is full or other errors occur
