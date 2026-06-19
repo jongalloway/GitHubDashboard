@@ -1200,6 +1200,11 @@
 
     wrapper.append(titleRow, descriptionNode, meta);
 
+    const recencyBar = window.GHD?.RepoRecencyBar?.buildCommitRecencyBar(repo);
+    if (recencyBar) {
+      wrapper.appendChild(recencyBar);
+    }
+
     if (topics.length) {
       const topicsRow = document.createElement('div');
       topicsRow.className = 'repo-topics';

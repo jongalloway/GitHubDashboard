@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   '/js/cache.js',
   '/js/github-client.js',
   '/js/repo-activity-meter.js',
+  '/js/repo-recency-bar.js',
   '/js/app.js',
   '/manifest.json',
   '/icons/icon.svg',
