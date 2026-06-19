@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ghd-v4';
+const CACHE_VERSION = 'ghd-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/js/auth.js',
   '/js/cache.js',
   '/js/github-client.js',
+  '/js/repo-activity-meter.js',
   '/js/app.js',
   '/manifest.json',
   '/icons/icon.svg',
