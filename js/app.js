@@ -22,9 +22,17 @@
     { key: 'squadRepos',      priority: 8, optional: true,  label: 'Repos with Squad',              detail: 'Repositories with active Squad AI team configuration.' }
   ];
 
+  const HEADER_HEALTH_SEGMENTS = [
+    { key: 'ciFailures', label: 'CI failing', shortLabel: 'CI', warningAt: 1, criticalAt: 2 },
+    { key: 'securityAlerts', label: 'Security alerts', shortLabel: 'Security', warningAt: 1, criticalAt: 2 },
+    { key: 'pendingReviews', label: 'Pending reviews', shortLabel: 'Reviews', warningAt: 3, criticalAt: 7 },
+    { key: 'releaseReady', label: 'Release pressure', shortLabel: 'Release', warningAt: 2, criticalAt: 4 }
+  ];
+
   const root = {
     headerNote: document.querySelector('#header-note'),
     refreshMeta: document.querySelector('#refresh-meta'),
+    headerHealthStrip: document.querySelector('#header-health-strip'),
     summaryGrid: document.querySelector('#summary-grid'),
     stateRegion: document.querySelector('#state-region'),
     repoGrid: document.querySelector('#repo-grid'),
@@ -574,6 +582,7 @@
 
   function renderSummarySkeleton() {
     root.summaryGrid.innerHTML = '';
+    renderHeaderHealthStrip();
     const skeletonItems = [...SUMMARY_CONFIG]
       .sort((a, b) => a.priority - b.priority)
       .slice(0, 5);
@@ -591,6 +600,7 @@
 
   function renderSummary(summary) {
     root.summaryGrid.innerHTML = '';
+    renderHeaderHealthStrip(summary);
 
     const visibleItems = [...SUMMARY_CONFIG]
       .sort((a, b) => a.priority - b.priority)
@@ -607,6 +617,93 @@
       `;
       root.summaryGrid.appendChild(card);
     });
+  }
+
+  function renderHeaderHealthStrip(summary = {}) {
+    if (!root.headerHealthStrip) return;
+
+    const model = _buildHeaderHealthModel(summary);
+    const rects = model.segments.map((segment) => {
+      return `<rect x="${segment.x.toFixed(2)}" y="0" width="${segment.width.toFixed(2)}" height="12" class="health-strip-segment tone-${segment.tone}" />`;
+    }).join('');
+
+    const legend = model.segments
+      .map((segment) => `
+        <li class="health-strip-legend-item" title="${escapeHtml(segment.label)}: ${segment.value}">
+          <span class="health-strip-swatch tone-${segment.tone}" aria-hidden="true"></span>
+          <span class="health-strip-label">${escapeHtml(segment.shortLabel)}</span>
+          <strong>${segment.value}</strong>
+        </li>
+      `)
+      .join('');
+
+    root.headerHealthStrip.innerHTML = `
+      <svg class="health-strip-svg" viewBox="0 0 100 12" role="img" aria-label="${escapeHtml(model.titleText)}">
+        <title>${escapeHtml(model.titleText)}</title>
+        ${rects}
+      </svg>
+      <ul class="health-strip-legend" aria-label="Header health legend">
+        ${legend}
+      </ul>
+      <span class="sr-only">${escapeHtml(model.srSummary)}</span>
+    `;
+  }
+
+  function _buildHeaderHealthModel(summary = {}) {
+    const segments = HEADER_HEALTH_SEGMENTS.map((segment) => {
+      const value = _normalizeSummaryMetric(summary[segment.key]);
+      return {
+        ...segment,
+        value,
+        tone: _getHealthTone(segment, value)
+      };
+    });
+
+    const total = segments.reduce((accumulator, segment) => accumulator + segment.value, 0);
+    const titleText = segments
+      .map((segment) => `${segment.label}: ${segment.value}`)
+      .join(' · ');
+    const srSummary = total === 0
+      ? 'All health-strip signals are clear.'
+      : `${total} total health pressure points.`;
+
+    const baseWidth = total > 0 ? 8 : 25;
+    const dynamicWidthBudget = total > 0 ? (100 - (segments.length * baseWidth)) : 0;
+    let runningX = 0;
+    const segmentsWithLayout = segments.map((segment, index) => {
+      const dynamicWidth = total > 0
+        ? (segment.value / total) * dynamicWidthBudget
+        : 0;
+      const width = index === segments.length - 1
+        ? (100 - runningX)
+        : (baseWidth + dynamicWidth);
+      const x = runningX;
+      runningX += width;
+      return {
+        ...segment,
+        x,
+        width
+      };
+    });
+
+    return {
+      total,
+      titleText,
+      srSummary,
+      segments: segmentsWithLayout
+    };
+  }
+
+  function _normalizeSummaryMetric(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+    return Math.round(numeric);
+  }
+
+  function _getHealthTone(segment, value) {
+    if (value >= segment.criticalAt) return 'critical';
+    if (value >= segment.warningAt) return 'warning';
+    return 'good';
   }
 
   function computeSummary(repos) {
@@ -1566,6 +1663,7 @@
       root.refreshMeta.setAttribute('aria-live', 'polite');
       root.refreshMeta.textContent = '';
     }
+    renderHeaderHealthStrip();
     root.stateRegion.innerHTML = `
       <article class="state-card connect">
         <h3>Connect your GitHub account</h3>
@@ -1595,6 +1693,7 @@
     root.headerNote.textContent = 'Configured account unavailable';
     root.refreshMeta.setAttribute('aria-live', 'polite');
     root.refreshMeta.textContent = 'Last refresh unavailable';
+    renderHeaderHealthStrip();
   }
 
   function getStatus(repo) {
@@ -1758,5 +1857,14 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  window.GHD = window.GHD || {};
+  if (typeof __GHD_TESTING__ !== 'undefined' && __GHD_TESTING__) {
+    window.GHD.__appTest = {
+      _buildHeaderHealthModel,
+      _normalizeSummaryMetric,
+      _getHealthTone
+    };
   }
 })();

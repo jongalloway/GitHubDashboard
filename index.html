@@ -32,8 +32,11 @@
         <div class="header-right">
           <button class="theme-toggle" id="refresh-btn" type="button" aria-label="Refresh private data" hidden>↻</button>
           <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme" onclick="GHD.Theme.toggle()">☀️</button>
-          <div class="header-meta" id="refresh-meta" aria-live="polite">
-            Refreshing dashboard data…
+          <div class="header-status-stack">
+            <div class="header-meta" id="refresh-meta" aria-live="polite">
+              Refreshing dashboard data…
+            </div>
+            <div class="header-health-strip" id="header-health-strip"></div>
           </div>
           <div class="auth-controls" id="auth-controls" aria-live="polite">
             <span class="view-badge view-badge--public" id="view-badge">Public view</span>
