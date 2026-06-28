@@ -69,3 +69,8 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Reviewed McManus's Phase 1 kanban-strip implementation. APPROVED. Lane derivation is correct, deterministic, testable, and matches the agreed P005 4-lane model.
 - Key finding: `workflow_status` and `security_alerts` are never fetched in ANY code path (auth or public) in `github-client.js` — Blocked lane is empty for everyone, not just public viewers. Accepted as-is for Phase 1; follow-up pipeline issue needed for Fenster.
 - Good test pattern: all 18 tests use injected `now` parameter for deterministic time assertions without mocking `Date.now()`.
+
+## Learnings (2026-06-27 — Issue #47 Blocked Lane Data Review)
+
+- Reviewed Fenster's #47 implementation (blocked-lane data pipeline). APPROVED. Shape match confirmed: `_parseWorkflowRun` and `_parseSecurityAlerts` output exactly matches what `deriveKanbanLane` reads. Graceful degradation via `_fetchJsonSoft`/`_paginateSoft` is solid — 403/404/missing scope → safe zeros, no thrown errors. +2 API calls per repo is acceptable cost.
+- PAT scope ruling: silent-zero degradation is correct behavior when `security_events` scope is missing. Recommended a non-blocking README note documenting the scope requirement for full Blocked-lane functionality.
