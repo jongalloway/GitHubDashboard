@@ -71,6 +71,12 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Standardized test config trigger coverage to `vitest.config.js` only, matching repository configuration.
 - Switched CI execution from `npm test --if-present` to `npm test` now that the canonical test script exists in `package.json`, making failures visible instead of silently skipping test execution.
 
+## Learnings (2026-06-28 PR #49 Review Fixes)
+
+- **Un-awaited promise in soft helper:** `return response.json()` (without `await`) inside a try/catch does NOT catch JSON parse errors — the rejection escapes the catch block and propagates to the caller. Always `await` the parse inside try so malformed-JSON responses degrade to null as intended rather than bubbling into `Promise.all` as an unhandled rejection.
+- `_paginateSoft` was already safe (used `const page = await response.json()` inside try); only `_fetchJsonSoft` needed fixing.
+- **README PAT scope accuracy:** The classic `repo` scope grants write access — it is NOT read-only even if the dashboard only reads. Avoid describing it as "read-only"; instead, note the dashboard only performs reads but recommend fine-grained tokens for least-privilege users.
+
 ## Learnings (2026-06-27 PAT Scopes Documentation)
 
 - Added "### PAT Scopes" subsection to README.md right after Quick Setup to document scope requirements for Blocked lane security alerts (`security_events` scope) and core features (`repo` scope), emphasizing graceful degradation when scopes are absent.

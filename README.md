@@ -22,7 +22,7 @@ That's it. The dashboard fetches your data client-side — nothing is stored on 
 
 ### PAT Scopes
 
-The dashboard works with a basic read-only Personal Access Token. Here's what each feature requires:
+The dashboard only performs read operations, but note that the classic `repo` scope grants broad access (including write). For least privilege, use a fine-grained token scoped read-only. Here's what each feature requires:
 
 - **Core features** (releases, PRs, issues, Copilot activity) — `repo` scope (or `public_repo` for public repos only)
 - **Blocked lane (security alerts)** — add `security_events` scope to enable Dependabot alerts; also requires **admin access** for private repositories

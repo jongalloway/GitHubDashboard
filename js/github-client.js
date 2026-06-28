@@ -123,7 +123,8 @@ window.GHD = window.GHD || {};
     try {
       const response = await fetch(url, { headers: _headers(token) });
       if (!response.ok) return null;
-      return response.json();
+      const data = await response.json();
+      return data;
     } catch (_) {
       return null;
     }
