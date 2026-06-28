@@ -330,3 +330,79 @@ Split Phase 2 scope ("chips, drill-down, snooze, Backlog→Top Pick scoring") in
 - **Sequencing:** #55 can start immediately; #56 benefits from #55 UI but logic is standalone; #57 is independent of both but integrates snooze filtering as additive work.
 
 **Updated #42:** Checklist updated with new sub-issue links. Phase 2 tracking split across three tracking issues for clarity.
+
+### D039: Issue #55 Lane Chips + Drill-Down Detail Panel (McManus, 2026-06-28)
+**Issue:** #55 | **PR:** #59 → rebased → #60 | **Status:** APPROVED / MERGED
+
+Add interactive drill-down functionality to Kanban lanes: clicking a lane chip expands a detail panel showing repos in that lane, with Escape/X/reclick to close.
+
+#### D039.1: Chip rows as direct `.kanban-strip` grid children (no wrapper div)
+**Context:** Chips needed to appear below each lane button, aligned to the same column.  
+**Choice:** Append chip row `<div>` elements directly to the `.kanban-strip` CSS grid. Use explicit `grid-column` CSS (`data-lane="blocked"` → `grid-column: 1`, etc.) to guarantee alignment even when some lanes are empty (hidden).  
+**Rejected:** Adding a wrapper `<div class="kanban-lane-col">` around each lane button + chip row. This would require restructuring `renderKanbanStrip` more invasively, and the grid-child approach achieves the same visual result with minimal changes.  
+**Trade-off accepted:** CSS `grid-column` placement couples CSS to the `data-lane` attribute values. These are stable constants; no issue foreseen.
+
+#### D039.2: Panel inserted between strip and top-pick-bar (not appended to body)
+**Context:** The detail panel needed a "home" in the DOM that is visually proximate to the strip.  
+**Choice:** Insert panel as a sibling of `.kanban-strip` inside `#kanban-strip-region`, using `insertBefore(panel, strip.nextSibling)` to slot it between the strip and the top-pick-bar.  
+**Rejected:** Appending to `document.body` or using a fixed-position overlay. The inline panel is less intrusive and fits the existing aesthetic.
+
+#### D039.3: `kanban-lane-chips.js` as separate module; called lazily from `kanban-strip.js`
+**Context:** Feature is self-contained enough to warrant its own module per established pattern (backlog-strip.js precedent).  
+**Choice:** New `js/kanban-lane-chips.js` exporting `GHD.KanbanLaneChips`. `renderKanbanStrip` checks `window.GHD.KanbanLaneChips` at call time (not load time). Chips are optional — if the module is absent, the strip renders normally.  
+**Benefit:** Progressive enhancement; existing kanban-strip tests are unaffected; chips module is entirely unit-testable.
+
+#### D039.4: Escape key listener registered once per page lifetime
+**Context:** `renderLaneChips` is called on every `renderRepos` (could be multiple times per session).  
+**Choice:** Module-level `_escapeListenerAdded` flag prevents duplicate `keydown` listeners. Panel state (`_openChip`) is reset to `null` at the start of every `renderLaneChips` call, so stale references never occur.
+
+**Test Results:** 44 new tests, all passing. Tests cover: chip rendering, panel insertion, Escape/X/reclick close, lane filtering, grid-column placement, lazy module loading.
+
+### D040: Issue #57 Backlog Scoring Module + Top Pick Revival (McManus, 2026-06-28)
+**Issue:** #57 | **PR:** #58 | **Status:** APPROVED / MERGED
+
+When no Blocked or Needs-Attention repos exist, the Top Pick bar now suggests the best Backlog repo to revive instead.
+
+#### D040.1: Self-contained `js/backlog-scoring.js` module
+**Choice:** New IIFE following the `release-pressure-indicator.js` pattern (`root.GHD.BacklogScoring = api; module.exports = api`). Pure functions only — no DOM, no API calls. Two exports:
+- `scoreBacklogRepo(repo, now)` — deterministic numeric score (0–90)
+- `findTopBacklogPick(repos, now)` — highest-scored repo or null
+
+**Benefit:** Pure, testable, isolated from UI rendering logic.
+
+#### D040.2: Scoring formula (four independent components, separate caps)
+| Component | Max | Signal |
+|---|---|---|
+| Recency | 50 | `(120 - ageDays) / 106 * 50` — linear across 14-120d window |
+| Open issues | 20 | `min(open_issues_count, 20)` |
+| Copilot/Squad | 10 | Copilot open PRs (+5), signals array non-empty (+5); Squad fallback (+3) |
+| Release pressure | 10 | `min(commits_since_latest, 10)` |
+
+**Tiebreaker:** `repo.name` ascending (alphabetical, stable across input order permutations).
+
+**Accepted trade-off:** Recency dominates (~56% of max score). This is intentional — the Backlog window is 14-120 days and freshness is the primary revival signal. A 30d repo with issues beats a 100d dormant repo even without other signals (D040.5 test proves this).
+
+#### D040.3: Top Pick bar gating in `kanban-strip.js`
+**Choice:** Gate logic lives in `renderKanbanStrip` where `laneMap` is already computed (single source of truth for lane counts). Flow:
+1. Try existing Dependabot pick first.
+2. If null AND `laneMap['blocked'].length === 0 && laneMap['needs-attention'].length === 0` → call `GHD.BacklogScoring.findTopBacklogPick(backlogRepos, now)`.
+3. If found → `{ type: 'backlog', pick }` → renders with "Pick this back up" prompt + green link.
+4. If not found (empty backlog) → no bar shown (graceful hide).
+
+**Signature:** `renderKanbanStrip(repos, backlogRepos)` — `backlogRepos` is optional; existing callers that omit it get `undefined` → backlog path skipped safely.
+
+#### D040.4: `_renderTopPickBar` extension via new `type === 'backlog'` branch
+**Choice:** Kept `type` discriminator pattern consistent with existing `type === 'dependabot'`. Added `top-pick-link--backlog` CSS modifier for green tint (signals "all clear, revival opportunity" vs blue "security action needed").
+
+#### D040.5: Snooze hook deferred
+**Issue #56 integration is additive:** The `findTopBacklogPick` call site in `renderKanbanStrip` can filter `backlogRepos` by snooze state before passing the array. No hook needed in the scoring module itself.
+
+**Files Changed:**
+- `js/backlog-scoring.js` — new module
+- `js/kanban-strip.js` — `renderKanbanStrip` signature + `_renderTopPickBar` backlog branch
+- `js/app.js` — pass `backlogReposArr` to `renderKanbanStrip`
+- `index.html` — add `<script src="js/backlog-scoring.js" defer>`
+- `css/style.css` — `.top-pick-link--backlog` dark + light + hover variants
+- `test/backlog-scoring.test.js` — 34 new tests
+
+**Test Results:** 34 new tests passing. Coverage: null/empty fallbacks, zero-signal baseline, recency ordering, issue cap, release cap, copilot signal, squad fallback, boundary (30d-with-issues > 100d-dormant), tiebreaker determinism, URL safety.
