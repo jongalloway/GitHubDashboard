@@ -115,6 +115,14 @@ window.GHD = window.GHD || {};
     }
   }
 
+  function _escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   function _renderTopPickBar(topPick) {
     if (!topPick) return null;
 
@@ -142,6 +150,24 @@ window.GHD = window.GHD || {};
       `;
     }
 
+    if (topPick.type === 'backlog') {
+      const pick = topPick.pick;
+      const label = _escapeHtml(pick.repo.full_name || pick.repo.name || 'this repo');
+      bar.innerHTML = `
+        <span class="top-pick-label" aria-hidden="true">⚡ Top Pick</span>
+        <span class="top-pick-action">
+          Pick this back up: <strong>${label}</strong> — all clear on reviews &amp; CI
+        </span>
+        <a class="top-pick-link top-pick-link--backlog"
+           href="${_escapeHtml(pick.url)}"
+           target="_blank"
+           rel="noopener noreferrer"
+           aria-label="Open ${label} in GitHub to pick it back up (opens in new tab)">
+          Open repo →
+        </a>
+      `;
+    }
+
     return bar;
   }
 
@@ -149,9 +175,10 @@ window.GHD = window.GHD || {};
    * Render the Kanban strip and Top Pick bar into #kanban-strip-region.
    * Must be called after repo cards are already in the DOM (renderRepos first).
    *
-   * @param {Array} repos - all visible repo data objects
+   * @param {Array} repos          - all visible repo data objects (excludes backlog)
+   * @param {Array} [backlogRepos] - repos in the Backlog strip (for revival Top Pick)
    */
-  function renderKanbanStrip(repos) {
+  function renderKanbanStrip(repos, backlogRepos) {
     const container = document.getElementById('kanban-strip-region');
     if (!container) return;
 
@@ -215,7 +242,33 @@ window.GHD = window.GHD || {};
 
     container.appendChild(strip);
 
-    const topPickBar = _renderTopPickBar(_findTopPick(repos));
+    // Add repo chips to each lane (issue #55 — kanban-lane-chips.js)
+    const KanbanLaneChips = window.GHD && window.GHD.KanbanLaneChips;
+    if (KanbanLaneChips && KanbanLaneChips.renderLaneChips) {
+      KanbanLaneChips.renderLaneChips(container, laneMap, now);
+    }
+
+    // ── Top Pick bar ────────────────────────────────────────
+    // Phase 1: Dependabot PRs win unconditionally when present.
+    // Phase 2 (issue #57): when Blocked + Needs-Attention are both empty,
+    //   fall through to backlog revival via GHD.BacklogScoring.
+    let topPick = _findTopPick(repos);
+    if (!topPick) {
+      const noBlockers =
+        laneMap['blocked'].length === 0 && laneMap['needs-attention'].length === 0;
+      if (noBlockers) {
+        const BacklogScoring = (typeof window !== 'undefined' ? window : globalThis)
+          .GHD && (typeof window !== 'undefined' ? window : globalThis).GHD.BacklogScoring;
+        if (BacklogScoring) {
+          const bl = Array.isArray(backlogRepos) ? backlogRepos : [];
+          const pick = BacklogScoring.findTopBacklogPick(bl, now);
+          if (pick) {
+            topPick = { type: 'backlog', pick };
+          }
+        }
+      }
+    }
+    const topPickBar = _renderTopPickBar(topPick);
     if (topPickBar) container.appendChild(topPickBar);
   }
 
