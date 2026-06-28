@@ -1657,6 +1657,27 @@ html[data-theme="light"] .top-pick-link:hover {
   border-color: rgba(37, 99, 235, 0.5);
 }
 
+/* Backlog revival variant — green tint to signal "good news, all clear" */
+.top-pick-link--backlog {
+  color: var(--text-success, #4ade80);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.top-pick-link--backlog:hover {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+html[data-theme="light"] .top-pick-link--backlog {
+  color: var(--text-success-light, #16a34a);
+  border-color: rgba(22, 163, 74, 0.3);
+}
+
+html[data-theme="light"] .top-pick-link--backlog:hover {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.5);
+}
+
 /* ── Responsive: collapse lane strip at ≤ 640px ─────────── */
 
 @media (max-width: 640px) {

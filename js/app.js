@@ -822,7 +822,9 @@
     // Backlog repos are excluded so the Healthy lane count is accurate
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
-      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !closed.has(r.name) && !backlogSet.has(r.name)));
+      const kanbanRepos = _currentRepos.filter(r => !closed.has(r.name) && !backlogSet.has(r.name));
+      const backlogReposArr = _currentRepos.filter(r => backlogSet.has(r.name));
+      KanbanStrip.renderKanbanStrip(kanbanRepos, backlogReposArr);
     }
 
     // Backlog strip — collapsible "pick back up" strip below the Kanban board
