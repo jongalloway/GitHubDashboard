@@ -287,3 +287,27 @@ Remove `squad-release.yml` immediately (PR #52 merged). Flag five additional Squ
 **Rationale for Deletion (not gating/skipping):** Option (b) — adding guards like `if: package.json has version` — was considered and rejected. A workflow that does nothing meaningful on every push is noise, not value. The release pipeline model itself is wrong for this repo; graceful no-ops don't fix that. Deletion is the correct engineering answer.
 
 **Follow-Up:** The five additional REMOVE candidates (squad-ci, squad-docs, squad-insider-release, squad-preview, squad-promote) should be cleaned up in a follow-up PR. Currently harmless (non-main branches don't exist = no trigger), but they add confusion. Recommend bundling into a single "cleanup boilerplate workflows" PR with team lead awareness.
+
+---
+
+### D037: Release Pressure Indicator — Tone Boundary Thresholds (McManus, 2026-06-28)
+**Issue:** #28 | **PR:** #54 (Closes #28) | **Status:** APPROVED / MERGED
+
+Tone buckets for `computeReleasePressureModel()` SVG indicator are deterministically derived from commit count relative to configurable threshold:
+
+| Percent range (commits ÷ threshold × 100, clamped 0–100) | Tone |
+|---|---|
+| 0–32% | `good` |
+| 33–65% | `warning` |
+| ≥ 66% | `critical` |
+
+**Default threshold:** 10 commits (matches existing `fetch-data.js` "release-overdue" heuristic in `github-client.js`). Overridable via `options.threshold`.
+
+**Rationale:** Three equal-ish thirds (33/33/34 split) provide clean, symmetric boundaries. The `critical` zone at ≥66% matches intuition: 6–7 commits on default threshold = overdue for release. Integer rounding via `Math.round()` makes boundaries predictable in tests (e.g., 3/10 = 30% → `good`, 4/10 = 40% → `warning`).
+
+**Trade-offs Accepted:**
+- **33% vs 30% boundary:** 33% chosen for one-third symmetry; 3-point UX difference negligible.
+- **Clamping at 100%:** Commits beyond threshold clamp to full bar (no SVG overflow), intentional and tested.
+- **Single threshold model:** No per-repo or per-org customization in Phase 1; defaults suffice for vibe-coding signal.
+
+**Integration:** Wired into app.js repo cards + index.html + css/style.css (reuses existing `--meter-good/warning/critical` CSS variables). Added 18-test suite validating tone boundaries, null-safety on missing release data, and clamping behavior. All tests passing.
