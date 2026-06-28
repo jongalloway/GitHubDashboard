@@ -26,6 +26,145 @@ function makeRepo(overrides = {}) {
   };
 }
 
+describe('KanbanStrip._isDependabotPR', () => {
+  let isDependabotPR;
+
+  beforeEach(() => {
+    globalThis.window = { GHD: {} };
+    loadBrowserScript('js/kanban-strip.js');
+    isDependabotPR = window.GHD.KanbanStrip._isDependabotPR;
+  });
+
+  it('returns true for author "dependabot[bot]"', () => {
+    expect(isDependabotPR({ author: 'dependabot[bot]' })).toBe(true);
+  });
+
+  it('returns true for author "app/dependabot"', () => {
+    expect(isDependabotPR({ author: 'app/dependabot' })).toBe(true);
+  });
+
+  it('returns true for author containing "dependabot" in any case', () => {
+    expect(isDependabotPR({ author: 'Dependabot[bot]' })).toBe(true);
+    expect(isDependabotPR({ author: 'DEPENDABOT' })).toBe(true);
+  });
+
+  it('returns false for a human PR author', () => {
+    expect(isDependabotPR({ author: 'jongalloway' })).toBe(false);
+  });
+
+  it('returns false for a Copilot PR author', () => {
+    expect(isDependabotPR({ author: 'copilot[bot]' })).toBe(false);
+  });
+
+  it('returns false for null/undefined pull', () => {
+    expect(isDependabotPR(null)).toBe(false);
+    expect(isDependabotPR(undefined)).toBe(false);
+  });
+
+  it('returns false for a pull with no author field', () => {
+    expect(isDependabotPR({})).toBe(false);
+  });
+});
+
+describe('KanbanStrip._findTopPick', () => {
+  let findTopPick;
+
+  beforeEach(() => {
+    globalThis.window = { GHD: {} };
+    loadBrowserScript('js/kanban-strip.js');
+    findTopPick = window.GHD.KanbanStrip._findTopPick;
+  });
+
+  it('returns null for an empty repos array', () => {
+    expect(findTopPick([])).toBeNull();
+  });
+
+  it('returns null when no repos have Dependabot PRs', () => {
+    const repos = [
+      makeRepo({ pending_reviews: { count: 1, items: [{ author: 'jongalloway' }] } }),
+      makeRepo({ name: 'other-repo', pending_reviews: { count: 0, items: [] } })
+    ];
+    expect(findTopPick(repos)).toBeNull();
+  });
+
+  it('returns a topPick object when a Dependabot PR exists', () => {
+    const repos = [
+      makeRepo({ pending_reviews: { count: 1, items: [{ author: 'dependabot[bot]' }] } })
+    ];
+    const result = findTopPick(repos);
+    expect(result).not.toBeNull();
+    expect(result.type).toBe('dependabot');
+  });
+
+  it('returned url is the Dependabot cross-repo deep-link (single source of truth)', () => {
+    const repos = [
+      makeRepo({ pending_reviews: { count: 1, items: [{ author: 'dependabot[bot]' }] } })
+    ];
+    const result = findTopPick(repos);
+    expect(result.url).toBe(
+      'https://github.com/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot'
+    );
+  });
+
+  it('sorts repos by Dependabot PR count descending (most PRs first)', () => {
+    const repoA = makeRepo({
+      name: 'repo-a',
+      pending_reviews: {
+        count: 1,
+        items: [{ author: 'dependabot[bot]' }]
+      }
+    });
+    const repoB = makeRepo({
+      name: 'repo-b',
+      pending_reviews: {
+        count: 3,
+        items: [
+          { author: 'dependabot[bot]' },
+          { author: 'dependabot[bot]' },
+          { author: 'dependabot[bot]' }
+        ]
+      }
+    });
+    const result = findTopPick([repoA, repoB]);
+    expect(result.repos[0].repo.name).toBe('repo-b');
+    expect(result.repos[0].count).toBe(3);
+    expect(result.repos[1].repo.name).toBe('repo-a');
+    expect(result.repos[1].count).toBe(1);
+  });
+
+  it('includes all repos with Dependabot PRs, excludes repos without', () => {
+    const repos = [
+      makeRepo({
+        name: 'bot-repo',
+        pending_reviews: { count: 2, items: [{ author: 'dependabot[bot]' }, { author: 'dependabot[bot]' }] }
+      }),
+      makeRepo({
+        name: 'human-repo',
+        pending_reviews: { count: 1, items: [{ author: 'jongalloway' }] }
+      })
+    ];
+    const result = findTopPick(repos);
+    expect(result.repos).toHaveLength(1);
+    expect(result.repos[0].repo.name).toBe('bot-repo');
+  });
+
+  it('handles repos with mixed Dependabot and human PRs (counts only bot PRs)', () => {
+    const repo = makeRepo({
+      pending_reviews: {
+        count: 3,
+        items: [
+          { author: 'dependabot[bot]' },
+          { author: 'jongalloway' },
+          { author: 'app/dependabot' }
+        ]
+      }
+    });
+    const result = findTopPick([repo]);
+    expect(result).not.toBeNull();
+    expect(result.repos[0].count).toBe(2); // only 2 Dependabot PRs
+  });
+});
+
 describe('KanbanStrip.deriveKanbanLane', () => {
   let derive;
 

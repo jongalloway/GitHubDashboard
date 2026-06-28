@@ -809,7 +809,7 @@
     // Kanban strip — must run after cards are in the DOM
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
-      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !getClosedRepos().has(r.name)));
+      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !closed.has(r.name)));
     }
   }
 

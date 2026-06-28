@@ -133,7 +133,7 @@ window.GHD = window.GHD || {};
           across ${repoCount} repo${repoCount === 1 ? '' : 's'} — quick security wins
         </span>
         <a class="top-pick-link"
-           href="https://github.com/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot"
+           href="${topPick.url}"
            target="_blank"
            rel="noopener noreferrer"
            aria-label="Open Dependabot PRs in GitHub (opens in new tab)">
@@ -221,7 +221,9 @@ window.GHD = window.GHD || {};
 
   GHD.KanbanStrip = {
     deriveKanbanLane,
-    renderKanbanStrip
+    renderKanbanStrip,
+    _isDependabotPR,
+    _findTopPick
   };
 
 })(window.GHD);

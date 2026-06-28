@@ -63,3 +63,9 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Drafted a "What should I work on next?" proposal: auto-derived Kanban lanes (Blocked → Needs Review → Working → Release Ready → Up-to-Date) from existing dashboard signals, priority scoring heuristic for 30-min work slots, and phased rollout. Discussion only, no code. Proposal at `.squad/decisions/inbox/keyser-vibe-kanban-proposal.md`.
 - Key insight: zero new API calls needed — all lane logic derivable from data already fetched (workflow_status, security_alerts, pending_reviews, pushed_at, release_overdue).
 - Integrated a "Backlog (3-month stale)" concept into the vibe-coding Kanban proposal: repos pushed >14d and ≤90d ago render as a separate strip below the 4-lane board, pulled out of Healthy. Discussion/proposal only — no code. See `.squad/decisions/inbox/keyser-vibe-backlog.md`.
+
+## Learnings (2026-06-27 — Phase 1 Kanban Review, issue #43)
+
+- Reviewed McManus's Phase 1 kanban-strip implementation. APPROVED. Lane derivation is correct, deterministic, testable, and matches the agreed P005 4-lane model.
+- Key finding: `workflow_status` and `security_alerts` are never fetched in ANY code path (auth or public) in `github-client.js` — Blocked lane is empty for everyone, not just public viewers. Accepted as-is for Phase 1; follow-up pipeline issue needed for Fenster.
+- Good test pattern: all 18 tests use injected `now` parameter for deterministic time assertions without mocking `Date.now()`.

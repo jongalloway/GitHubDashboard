@@ -79,6 +79,39 @@ Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config
 ### D023: Workflow Badge Link Wrapping Strategy (McManus, 2026-05-24)
 When `workflow_status.latest_run.html_url` present, CI badge wrapped in `<a>` tag (opens in new tab) rather than adding button/icon affordance. Consistent with GitHub's own badge behavior. Badge-link class resets anchor styling.
 
+### D024: Phase 1 Kanban Strip Lane Derivation (McManus, 2026-06-27)
+**Issue:** #43 | **Branch:** `squad/43-kanban-strip` | **Status:** APPROVED
+
+Implement `deriveKanbanLane()` pure function with deterministic lane precedence (top-down: Blocked > Needs Attention > Working > Healthy). Use `pushed_at` as primary date source (always available); fall back to `last_commit_date`. "Needs Attention" uses existing `pending_reviews.count` without Dependabot sub-filtering. 14-day boundary (`pushed_at <= now - 14 days` inclusive, millisecond precision). Closed repos excluded from lane counts. Function exported on `window.GHD.KanbanStrip` for testability; injects `now` parameter for determinism in tests.
+
+**Accepted trade-off:** Blocked lane empty for public/unauthenticated users (pre-existing `workflow_status` and `security_alerts` data gap in pipeline — issue #47 filed for future pipeline work).
+
+### D025: Phase 1 Kanban Strip Top Pick Bar — Read-Only Deep-Link (Jon Galloway / Keyser, 2026-06-27)
+**Issue:** #43 | **PR:** #48 | **Status:** APPROVED
+
+Top Pick surfaces Dependabot-merged deep-link to `https://github.com/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot`. Zero write-scope risk in Phase 1. Bar hidden when no Dependabot PRs detected. Single URL works for any authenticated user. Unauthed users redirected to GitHub sign-in (acceptable). Phase 2+ may add one-click merge if user upgrades to `pull_requests: write` PAT scope.
+
+### D026: Phase 1 Kanban Strip UI & Theme (McManus, 2026-06-27)
+**Issue:** #43 | **Status:** APPROVED
+
+Lane buttons: "Needs Attention" amber (`--squad` token, #f59e0b dark / #92400e light). Dark + light theme support via existing tokens. Mobile responsive: ≤640px collapses lane labels. Lane filter interaction: clicking button dims non-matching cards (opacity 0.3); class `.kanban-dimmed` preserves layout. Card repo identification via `data-repo` attribute matched against `data-kanban-lane`. CSS.escape() applied defensively (low risk, no user input).
+
+### D027: Phase 1 Kanban Strip Test Coverage (Hockney, 2026-06-27)
+**Issue:** #43 | **Status:** APPROVED
+
+All four lanes reachable in unit tests: Blocked (CI + security), Needs Attention, Working, Healthy. Top-down precedence validated (4-way chain). 14-day boundary tested (14d → working, 14d+1ms → healthy). Edge cases: null date fallbacks, empty repo, `now` injection determinism. Three minor untested paths accepted for Phase 1 (negligible production risk): `has_workflows: true` + no runs; non-failing CI conclusions; invalid date strings. DOM rendering tests (zero coverage) deferred to Phase 2 (requires jsdom). **Result:** 68/68 tests pass, no regressions.
+
+### D028: Phase 1 Kanban Strip — Blocked-Lane Data Gap Ruling (Keyser, 2026-06-27)
+**Issue:** #43 | **Follow-up:** #47 | **Status:** APPROVED / ACCEPT AS-IS
+
+**Finding:** `workflow_status` and `security_alerts` hardcoded to empty defaults in ALL paths (authenticated + public). Pipeline comment labels these "Auth-only fields" but fetch logic never implemented in either branch.
+
+**Consequence:** Blocked lane always empty for ALL users today, not just public.
+
+**Ruling:** ACCEPT AS-IS for Phase 1 shipment. Lane-derivation logic is correct — when pipeline populates these fields (future work), Blocked lane will activate automatically without kanban-strip changes. Primary Phase 1 value is Working/Needs Attention/Healthy triage, which works today. Code flagged with `DATA GAP` comments.
+
+**Fix belongs in data pipeline** (`github-client.js`), not UI. Filed issue #47 (Fenster: implement `workflow_status` + `security_alerts` fetching in authenticated path).
+
 ## Proposals / Under Discussion
 
 ### P001: "What Should I Work On Next?" — Vibe-Coding Kanban Lanes (Keyser, 2026-06-27)
