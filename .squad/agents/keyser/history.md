@@ -74,3 +74,10 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 
 - Reviewed Fenster's #47 implementation (blocked-lane data pipeline). APPROVED. Shape match confirmed: `_parseWorkflowRun` and `_parseSecurityAlerts` output exactly matches what `deriveKanbanLane` reads. Graceful degradation via `_fetchJsonSoft`/`_paginateSoft` is solid — 403/404/missing scope → safe zeros, no thrown errors. +2 API calls per repo is acceptable cost.
 - PAT scope ruling: silent-zero degradation is correct behavior when `security_events` scope is missing. Recommended a non-blocking README note documenting the scope requirement for full Blocked-lane functionality.
+
+## Learnings (2026-06-28 — Issue #44 Backlog Strip Review)
+
+- Reviewed McManus's Phase 1.5 Backlog strip implementation. **APPROVED.** All seven ratified requirements satisfied: boundary math exact (strictly >14d, ≤120d), Blocked/Needs-Attention guard clauses run before age check, no double-counting in grid/Kanban/strip, collapsed by default, zero new API calls, null-date safe exclusion.
+- **Drift risk flagged (non-blocking):** `CI_FAILING` set and `WORKING_WINDOW_MS = 14d` are duplicated verbatim between `kanban-strip.js` and `backlog-strip.js`. `isBacklogRepo` re-implements Blocked/Needs-Attention checks rather than calling `deriveKanbanLane`. Values are identical today but could diverge if CI conclusions expand. Recommend extracting a shared `GHD.KanbanConstants` module if `CI_FAILING` ever changes.
+- **No-double-count pattern confirmed:** `backlogSet` is excluded from `pinnedRepos`, `normalRepos`, AND the `renderKanbanStrip` input in one consistent pass in `renderRepos()`. Any future strip feature should follow this same three-exclusion pattern.
+- **UX edge case noted:** Pinned repos aging into the 15–120d window silently disappear from the card grid into the collapsed backlog strip. Technically correct per P006 but worth a future UX decision on pin-vs-backlog interaction.
