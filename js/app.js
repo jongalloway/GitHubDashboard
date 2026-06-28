@@ -805,6 +805,12 @@
     // S2: Record snapshots after rendering
     recordRepositorySnapshots(_currentRepos);
     renderHeaderSparkline(_currentRepos);
+
+    // Kanban strip — must run after cards are in the DOM
+    const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
+    if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
+      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !getClosedRepos().has(r.name)));
+    }
   }
 
   function renderHeaderSparkline(repos) {
@@ -840,6 +846,7 @@
 
   function buildRepoCard(repo, isPinned = false) {
     const card = document.createElement('article');
+    card.dataset.repo = repo.name; // used by kanban-strip lane filter
     const status = getEffectiveStatus(repo);
     const language = repo.primary_language || 'Unknown';
     const topics = Array.isArray(repo.topics) ? repo.topics.slice(0, 4) : [];

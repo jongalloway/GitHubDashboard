@@ -62,4 +62,21 @@ Scribe session completed:
 - 2026-06-01T09:47:00-07:00: Added focused tests in `test/fetch-data.logic.test.js`, `test/auth.test.js`, and `test/cache.test.js` covering data normalization, next-step signal fallback logic, token/session lifecycle, sign-out cache clearing, and cache soft/hard stale semantics. Local run passed: 3 files, 12 tests, ~2.6s via `npm test`.
 - 2026-06-01: Consolidated to a single canonical Vitest directory (`test/`) to keep `npm test` deterministic and fast in Node env. Retained high-signal suites (`auth`, `cache`, `fetch-data` heuristics, `github-client`) and retired browser-heavy/duplicate tests from `tests/` (`app.render.test.js`, duplicate `cache.test.js`). Migrated GitHub client coverage into `test/github-client.test.js` with a Node-safe `globalThis.window` setup. Local run passed: 4 files, 15 tests, ~1.07s.
 
-- 2026-06-27T20:36:29-07:00: Drafted a Kanban "Glance-and-Go" UX concept (discussion only, no code) at Jon's request. Proposal covers 5-lane board above repo cards, chip anatomy, Top Pick callout, list management (pin/snooze/archive), drag-and-drop vs. keyboard affordances, and visual language. Key tradeoffs flagged: vanilla JS drag complexity, localStorage-only state, mobile density. Deferred data/state rules to Keyser; deferred merge-action affordances to whether the PAT scope supports write operations.
+- 2026-06-27T22:22:00-07:00: Phase 1 Kanban Strip (issue #43) implemented. 4-lane strip above repo card grid, Top Pick bar, lane filter interactivity. Summary below.
+
+  **Actual field names found for each lane signal:**
+  - **Blocked — CI**: `repo.workflow_status.has_workflows` (boolean) + `repo.workflow_status.latest_run.conclusion` ∈ `{'failure','timed_out','startup_failure','action_required'}`. **DATA GAP**: `has_workflows` is `false` in public/unauthenticated mode — CI failure signal is unavailable without auth.
+  - **Blocked — Security**: `repo.security_alerts.total` (number, >0 triggers). **DATA GAP**: Always 0 in public mode (requires `security_events` PAT scope). Both Blocked sub-signals are absent for public users; the lane will appear empty without private auth.
+  - **Needs Attention — PRs**: `repo.pending_reviews.count` (number, >0 triggers). Available in both public and private mode from the PRs API.
+  - **Working — Push date**: `repo.pushed_at` (ISO string from GitHub REST API root repo object). Always available. Falls back to `repo.last_commit_date` if absent.
+  - **Top Pick Dependabot detection**: `repo.pending_reviews.items[n].author` — checks `.toLowerCase().includes('dependabot')`. Matches `dependabot[bot]` and `dependabot` logins.
+
+  **Render integration point:** `renderRepos()` in `js/app.js` at the end, after `renderHeaderSparkline`. Calls `window.GHD.KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !getClosedRepos().has(r.name)))`. Closed repos are excluded from lane counts.
+
+  **Card identification for filter:** Added `card.dataset.repo = repo.name` in `buildRepoCard()`. `renderKanbanStrip` sets `card.dataset.kanbanLane` after cards are in the DOM by iterating the grid and matching by `data-repo`.
+
+  **Tests:** 18 tests in `test/kanban-strip.test.js` — covers all 4 lanes, top-down precedence, 14-day boundary (exact + off-by-1ms), `now` argument, public-mode gap behavior, and minimal/empty repo edge cases. All 68 suite tests pass.
+
+  **DATA GAPS for Keyser to decide on:** (1) Should Phase 1 add a `workflow_status` fetch to the browser public client to populate the Blocked lane in public mode? (2) Should security_alerts be surfaced differently (e.g., from `repo.security_alerts.total > 0` already works in private mode — no change needed there)?
+
+ Proposal covers 5-lane board above repo cards, chip anatomy, Top Pick callout, list management (pin/snooze/archive), drag-and-drop vs. keyboard affordances, and visual language. Key tradeoffs flagged: vanilla JS drag complexity, localStorage-only state, mobile density. Deferred data/state rules to Keyser; deferred merge-action affordances to whether the PAT scope supports write operations.
