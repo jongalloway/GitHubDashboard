@@ -253,3 +253,37 @@ Two design decisions carried from #42/#44 proposals:
 2. Verify closed repos excluded from both backlog and grid (closed > backlog precedence).
 
 **Result:** 151 → 153 passing | 3 skipped. Full suite green, no regressions. Grid-exclusion contract verified.
+
+### D036: Squad-CLI Release Pipeline Workflows — Deletion Decision (Fenster, 2026-06-28)
+**PR:** #52 (`squad/fix-release-workflow`) | **Status:** APPROVED / MERGED (squash)
+
+Remove `squad-release.yml` immediately (PR #52 merged). Flag five additional Squad-CLI release/CI boilerplate workflows for follow-up removal by team lead with user awareness.
+
+**Context:** Squad-CLI installs a `dev → preview → insider → main` versioned npm release pipeline as boilerplate. GitHubDashboard is a **static GitHub Pages dashboard** — no published npm package, no versioned releases, no `version` field in `package.json`, no `CHANGELOG.md`. The pipeline is entirely inapplicable.
+
+`squad-release.yml` was triggering on every push to `main` and failing immediately:
+1. `package.json` has no `version` field → `node -e "console.log(require('./package.json').version)"` returns `"undefined"`
+2. No `CHANGELOG.md` exists → grep exits 1 on every run
+3. Test step runs `node --test test/*.cjs` — no `.cjs` files exist; repo uses Vitest (`npm test`, `.test.js`)
+
+**Workflow Audit — Full Classification:**
+
+| Workflow | Decision | Reason |
+|----------|----------|--------|
+| `squad-release.yml` | **REMOVE** (PR #52) | Fails every push to main; version/CHANGELOG checks meaningless for static site |
+| `squad-ci.yml` | **REMOVE** (follow-up) | References dev/preview/insider branches (don't exist); wrong test command; superseded by ci-tests.yml |
+| `squad-docs.yml` | **REMOVE** (follow-up) | Triggers on `preview` branch (doesn't exist); deploys `docs/` dir — conflicts with update-dashboard.yml |
+| `squad-insider-release.yml` | **REMOVE** (follow-up) | `insider` branch doesn't exist; npm release boilerplate; wrong test command |
+| `squad-preview.yml` | **REMOVE** (follow-up) | `preview` branch doesn't exist; checks CHANGELOG.md (missing); wrong test command |
+| `squad-promote.yml` | **REMOVE** (follow-up) | Full dev→preview→main promotion model; none of those branches exist |
+| `squad-heartbeat.yml` | **KEEP** | Issue/PR triage and Copilot auto-assign; functional squad workflow |
+| `squad-issue-assign.yml` | **KEEP** | Routes squad:* label assignments; functional |
+| `squad-label-enforce.yml` | **KEEP** | Label namespace mutual exclusivity; functional |
+| `squad-triage.yml` | **KEEP** | Routes squad-labeled issues to team members; functional |
+| `sync-squad-labels.yml` | **KEEP** | Syncs issue labels from team.md; functional |
+| `ci-tests.yml` | **KEEP** ✅ | Correct CI: `npm ci` + `npm test` (Vitest); proper path filters |
+| `update-dashboard.yml` | **KEEP** ✅ | Core deployment pipeline for static site |
+
+**Rationale for Deletion (not gating/skipping):** Option (b) — adding guards like `if: package.json has version` — was considered and rejected. A workflow that does nothing meaningful on every push is noise, not value. The release pipeline model itself is wrong for this repo; graceful no-ops don't fix that. Deletion is the correct engineering answer.
+
+**Follow-Up:** The five additional REMOVE candidates (squad-ci, squad-docs, squad-insider-release, squad-preview, squad-promote) should be cleaned up in a follow-up PR. Currently harmless (non-main branches don't exist = no trigger), but they add confusion. Recommend bundling into a single "cleanup boilerplate workflows" PR with team lead awareness.
