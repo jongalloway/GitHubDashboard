@@ -24,6 +24,9 @@
 
 ## Key Learnings
 
+- **Module-level flag reset discipline:** State flags like `_isExpanded` must be reset at the TOP of every render function, not only on the non-early-return path. Missing the reset on empty/early-return means stale state bleeds into the next render, requiring an extra click to recover expected behavior. Canonical fix: `_isExpanded = false` as the very first statement in `renderBacklogStrip`.
+- **Chip URL hardening:** GitHub API repo objects carry both `url` (API endpoint, e.g. `https://api.github.com/repos/…`) and `html_url` (human-facing page). Never fall back to `repo.url` in UI links. Correct fallback chain: `html_url` → build from `full_name` → `'#'`. Always apply an http(s) guard (`/^https?:\/\//i.test(raw)`) and clamp anything else to `'#'` to prevent XSS via `javascript:` URIs. Extract this as a named helper (`_safeRepoUrl`) and export it for unit-testability without needing DOM/jsdom.
+
 - Backlog strip is display-only in Phase 1.5 (no snooze/archive/localStorage); Phase 2 will add state persistence and Top Pick integration
 - Classifier pure function pattern (`isBacklogRepo(repo, now)`) matches `deriveKanbanLane` for testability; `now` injection enables deterministic tests
 - Grid-exclusion pattern: build exclusion set first, filter all downstream render paths (grid cards + Kanban lanes), no double-counting possible
