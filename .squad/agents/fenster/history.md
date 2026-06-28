@@ -85,6 +85,12 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - For a static site with no versioned npm releases, `squad-release.yml` on a `push: branches: [main]` trigger is actively harmful — it fails on every merge. Deletion is always the right call when the workflow's entire purpose (version tagging + npm release) does not match the project model.
 - Functional squad workflows worth keeping: `squad-heartbeat.yml` (issue triage + Copilot auto-assign), `squad-issue-assign.yml` (label → assignment routing), `squad-label-enforce.yml` (label namespace enforcement), `squad-triage.yml` (squad inbox routing), `sync-squad-labels.yml` (label sync from team.md).
 
+## Learnings (2026-06-28 Boilerplate Workflow Cleanup — PR #53)
+
+- Before deleting any workflow, grep the entire repo for the filename and job names to rule out `workflow_call`, `needs:`, or required-status-check dependencies. For this repo, none of the 5 removed files were referenced by any KEEP workflow — only squad docs mentioned them.
+- Dependency check order: (1) grep `.github/workflows/` for `workflow_call` and `needs:` cross-references, (2) grep docs/README for filenames, (3) confirm no `workflow_call` on the to-be-deleted files themselves.
+- PowerShell `gh pr create --body` strings with backtick characters (`` ` ``) trigger Unicode escape parsing errors. Use a here-string (`@" ... "@`) or strip backticks from the body to avoid parser failures.
+
 ## Learnings (2026-06-27 PAT Scopes Documentation)
 
 - Added "### PAT Scopes" subsection to README.md right after Quick Setup to document scope requirements for Blocked lane security alerts (`security_events` scope) and core features (`repo` scope), emphasizing graceful degradation when scopes are absent.
