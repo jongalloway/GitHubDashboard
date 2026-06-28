@@ -1715,6 +1715,158 @@ html[data-theme="light"] .top-pick-link--backlog:hover {
   }
 }
 
+/* ── Kanban Lane Chips + Detail Panel (issue #55) ────────── */
+
+/* Chip rows are direct children of .kanban-strip (4-col grid).
+   Explicit grid-column keeps each row aligned below its lane button
+   even when some lanes are empty (hidden). */
+.kanban-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-content: flex-start;
+  padding-top: 0.3rem;
+  min-height: 0;
+}
+
+.kanban-chip-row[data-lane="blocked"]         { grid-column: 1; }
+.kanban-chip-row[data-lane="needs-attention"] { grid-column: 2; }
+.kanban-chip-row[data-lane="working"]         { grid-column: 3; }
+.kanban-chip-row[data-lane="healthy"]         { grid-column: 4; }
+
+.kanban-repo-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-repo-chip:hover,
+.kanban-repo-chip[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--bg-elevated-strong);
+}
+
+.kanban-repo-chip-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Detail panel ─────────────────────────────────────────── */
+
+.kanban-detail-panel {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  animation: kanban-panel-in 0.15s ease-out;
+}
+
+@keyframes kanban-panel-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kanban-detail-panel--blocked         { border-left-color: var(--danger); }
+.kanban-detail-panel--needs-attention { border-left-color: var(--squad); }
+.kanban-detail-panel--working         { border-left-color: var(--accent); }
+.kanban-detail-panel--healthy         { border-left-color: var(--success); }
+
+.kanban-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.kanban-detail-repo-link {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanban-detail-repo-link:hover {
+  text-decoration: underline;
+}
+
+.kanban-detail-close {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.4rem;
+  font-family: inherit;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.kanban-detail-close:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.kanban-detail-reasons {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.kanban-detail-reasons li + li {
+  margin-top: 0.2rem;
+}
+
+/* ── Mobile: chips stack full-width below the lane strip ── */
+
+@media (max-width: 640px) {
+  .kanban-chip-row,
+  .kanban-chip-row[data-lane="blocked"],
+  .kanban-chip-row[data-lane="needs-attention"],
+  .kanban-chip-row[data-lane="working"],
+  .kanban-chip-row[data-lane="healthy"] {
+    grid-column: 1 / -1;
+    overflow-x: auto;
+    flex-wrap: wrap;
+    padding-bottom: 0.1rem;
+  }
+
+  .kanban-detail-panel {
+    border-left-width: 1px;
+    border-top: 3px solid var(--border);
+  }
+
+  .kanban-detail-panel--blocked         { border-top-color: var(--danger); }
+  .kanban-detail-panel--needs-attention { border-top-color: var(--squad); }
+  .kanban-detail-panel--working         { border-top-color: var(--accent); }
+  .kanban-detail-panel--healthy         { border-top-color: var(--success); }
+}
+
 /* ── Backlog Strip (issue #44) ──────────────────────────── */
 
 .backlog-strip-region {
