@@ -199,3 +199,57 @@ Add a **separate collapsible "📋 Backlog" strip** below the 4-lane Kanban boar
 **Phasing:** Display-only strip in Phase 1.5; snooze/archive + Top Pick integration Phase 2.
 
 **Open:** Jon chose 120-day window to catch slower-burn projects; 90-day alternative discussed. Collapsed by default recommended.
+
+---
+
+### D032: Backlog Strip Design Decisions — Collapse + Grid-Exclusion (Jon Galloway, 2026-06-28)
+**Issue:** #44 — Phase 1.5 Backlog "Pick Back Up" Strip | **Branch:** `squad/44-backlog-strip` | **Status:** RATIFIED
+
+Two design decisions carried from #42/#44 proposals:
+
+1. **Collapse by default:** Backlog strip renders collapsed on every page load. No localStorage persistence in Phase 1.5. Expand-on-demand keeps the 4-lane Kanban board the visual focus.
+
+2. **Strip-only, no grid duplication:** Backlog repos are pulled **entirely out of the main card grid** — they appear ONLY in the collapsible strip. No backlog repo appears as a full card in the grid below the strip. Grid count (Healthy lane) excludes backlog repos.
+
+**Rationale:** Answers open questions from P006. Resolves implementation ambiguity for Phase 1.5 ship.
+
+### D033: Backlog Strip Classifier Rule + Grid-Exclusion Implementation (McManus, 2026-06-28)
+**Issue:** #44 | **Branch:** `squad/44-backlog-strip` | **Status:** IMPLEMENTED + APPROVED
+
+**Classifier contract (`GHD.BacklogStrip.isBacklogRepo(repo, now)`):**
+- Returns `true` iff: `pushed_at` age **> 14 days AND ≤ 120 days**, AND NOT Blocked (CI failure OR security alerts), AND NOT Needs Attention (pending reviews)
+- Uses `pushed_at` as primary; falls back to `last_commit_date` on missing/invalid date
+- Returns `false` for null/undefined date, repos > 120 days old, Blocked, or Needs Attention — these are never shown in backlog strip
+- Pure, testable, exported on `GHD.BacklogStrip`; injects `now` for determinism
+
+**Grid-exclusion integration** (in `renderRepos()` in `js/app.js`):
+- Build `backlogSet` (Set of repo names) via `BacklogStrip.isBacklogRepo` check on all repos
+- Filter out `backlogSet` from `pinnedRepos` and `normalRepos` before rendering grid cards
+- Pass repos with `backlogSet` excluded to `renderKanbanStrip()` → Healthy lane count is accurate
+- Pass `_currentRepos.filter(r => backlogSet.has(r.name))` to `renderBacklogStrip()` → strip-only render
+
+**Files:** `js/backlog-strip.js` (new IIFE), `js/app.js` (renderRepos integration), `index.html` (strip region + script), `css/style.css` (strip styling), `test/backlog-strip.test.js` (31 tests).
+
+**Result:** 151 → 153 passing tests (3 skipped pre-existing). No regressions.
+
+### D034: Keyser Review — Backlog Strip Correctness + Drift-Risk Warning (Keyser, 2026-06-28)
+**Issue:** #44 | **Branch:** `squad/44-backlog-strip` | **Status:** APPROVED
+
+**Verdict:** ✅ APPROVE for Phase 1.5 merge. All ratified requirements satisfied.
+
+**Drift-risk finding:** McManus re-implements `CI_FAILING` set and `WORKING_WINDOW_MS` constant inline rather than calling `deriveKanbanLane`. Values are currently consistent but duplication creates two sources of truth.
+
+**Ruling:** Accept for Phase 1.5 (small, well-tested duplication). **File follow-up to extract shared constants** (`GHD.KanbanConstants: { CI_FAILING, WORKING_WINDOW_MS }`) if the set ever expands or lane logic changes.
+
+**Non-blocking UX edge case:** Pinned repos that age into 15–120d window will silently move from card grid to backlog strip. User who pinned for visibility loses grid presence. Recommend documenting or filtering pinned repos out in Phase 2.
+
+### D035: Hockney Test Review — Gap #7 Closure + Final Verdict (Hockney, 2026-06-28)
+**Issue:** #44 | **Branch:** `squad/44-backlog-strip` | **Status:** REJECT → CLOSED (gap found and fixed)
+
+**Gap #7:** Integration test for grid-exclusion dedup untested. Original test only asserted what IS in backlog, never what is NOT in grid. Test comment acknowledged the gap.
+
+**Fix (2 new tests):** Added `'BacklogStrip — renderRepos integration contract (app.js pattern)'` describe block:
+1. Replicate exact Set-building loop from app.js. Assert backlog repo NOT in gridRepos, working/dormant repos remain in grid, mutual exclusion holds.
+2. Verify closed repos excluded from both backlog and grid (closed > backlog precedence).
+
+**Result:** 151 → 153 passing | 3 skipped. Full suite green, no regressions. Grid-exclusion contract verified.

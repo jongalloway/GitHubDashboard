@@ -1664,3 +1664,117 @@ html[data-theme="light"] .top-pick-link:hover {
     gap: 0.45rem;
   }
 }
+
+/* ── Backlog Strip (issue #44) ──────────────────────────── */
+
+.backlog-strip-region {
+  margin-bottom: 1rem;
+}
+
+.backlog-strip-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--text-soft);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, border-radius 0.15s;
+}
+
+.backlog-strip-toggle:hover {
+  background: var(--bg-elevated-strong);
+}
+
+.backlog-strip-toggle[aria-expanded="true"] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+
+.backlog-strip-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.backlog-strip-title {
+  font-weight: 600;
+  flex: 1 1 0;
+}
+
+.backlog-strip-count {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 1.5ch;
+  text-align: right;
+}
+
+.backlog-strip-chevron {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  line-height: 1;
+}
+
+.backlog-strip-body {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(18px);
+  padding: 0.65rem 0.9rem;
+}
+
+.backlog-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.backlog-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated-strong);
+  color: var(--text-soft);
+  text-decoration: none;
+  font-size: 0.82rem;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.backlog-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.backlog-chip-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.backlog-chip-age {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .backlog-chip-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+  }
+}

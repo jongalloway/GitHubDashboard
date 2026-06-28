@@ -1,8 +1,19 @@
 # McManus — History Archive
 
-**Archived:** 2026-06-27 (summarized from 15,852 bytes history.md)
+**Archived:** 2026-06-27 (summarized from 15,852 bytes history.md)  
+**Updated:** 2026-06-28 (summarized from 18,436 bytes history.md)
 
 ## Summary of Major Accomplishments
+
+### Backlog Strip Phase 1.5 (June 2026)
+- Collapsible "pick back up" strip below 4-lane Kanban board (2026-06-28)
+- Classifier: repos aged 15–120 days (not Blocked/Needs Attention) — `isBacklogRepo(repo, now)`
+- Grid-exclusion: backlog repos pulled OUT of main card grid (no duplication); Healthy lane count excludes backlog
+- Age formatter: weeks (<28d) vs months (≥28d) relative time labels
+- Files: `js/backlog-strip.js` (IIFE), `js/app.js` integration, `index.html`/`css/style.css`, `test/backlog-strip.test.js` (31 tests)
+- Initial result: 151 passing; Hockney closed gap #7 (grid-exclusion integration tests) → 153 passing
+- Design decisions D032/D033 ratified; Keyser approved with drift-risk note (CI_FAILING duplication); Hockney verified all coverage
+- Orchestration log: 2026-06-28T08-44Z-mcmanus.md
 
 ### Authentication System (May 2026)
 - Replaced GitHub App Device Flow with fine-grained PAT input modal (2026-05-23)
