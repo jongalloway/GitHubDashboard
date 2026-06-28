@@ -136,3 +136,18 @@ A single "Top Pick" callout bar sits between Kanban header and repo cards, surfa
 - **Mobile density:** 5 horizontal lanes won't fit < 640 px. Collapse to vertical scrollable pill-row or single "Focus" lane with count badges.
 - **Write actions (merge Dependabot):** Requires `pull_requests: write` PAT scope (not guaranteed). Must check PAT scopes or gracefully degrade to GitHub link.
 - **Top Pick algorithm:** Needs Keyser sign-off on scoring weights (data/state decision). Simple scoring: security > CI > review count > release > stale.
+
+---
+
+### P003: Dependabot Action Phasing — Top Pick Bar Read-Only Phase 1 (Jon Galloway via Coordinator, 2026-06-27)
+**Status:** Proposal / clarification (direction set, awaiting implementation)
+
+For the "What Should I Work On Next?" Kanban feature, the **Top Pick 30-minute action should ship in Phase 1 as a safe, read-only deep-link** to GitHub's filtered Dependabot PR list.
+
+**Phase 1 (safe, immediate):** Top Pick bar surfaces quick-win recommendations (esp. Dependabot merges) as deep-links to GitHub's filtered PR list. Zero write-scope risk. Users click link, review in GitHub, merge manually.
+
+**Phase 2+ (richer in-app actions):** Implement one-click "Merge all Dependabot PRs" button and similar write-action affordances — requires `pull_requests: write` PAT scope (not guaranteed present, optional).
+
+**Rationale:** Validate the priority-scoring model in production before adding write-scope actions. User gets immediate value (glance → identify quick win → one click to GitHub), while richer in-app actions roll out once model is proven and user has upgraded their PAT if needed.
+
+**Dependency:** Complements P001 (architecture) and P002 (UX) — clarifies Phase 1 scope boundary around Dependabot/bot PR handling.
