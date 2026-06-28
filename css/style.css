@@ -1481,3 +1481,186 @@ code {
 .public-sign-in-link:hover {
   opacity: 0.8;
 }
+
+/* ── Kanban Strip (issue #43) ────────────────────────────── */
+
+.kanban-strip-region {
+  margin-bottom: 1rem;
+}
+
+.kanban-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.kanban-lane {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--text-soft);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.kanban-lane:hover {
+  background: var(--bg-elevated-strong);
+}
+
+/* Per-lane accent colors */
+.kanban-lane--blocked .kanban-lane-count        { color: var(--danger); }
+.kanban-lane--needs-attention .kanban-lane-count { color: var(--squad); }
+.kanban-lane--working .kanban-lane-count         { color: var(--accent); }
+.kanban-lane--healthy .kanban-lane-count         { color: var(--success); }
+
+.kanban-lane--blocked.is-active {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.kanban-lane--needs-attention.is-active {
+  border-color: var(--squad);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--squad) 30%, transparent);
+}
+
+.kanban-lane--working.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.kanban-lane--healthy.is-active {
+  border-color: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.kanban-lane-emoji {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.kanban-lane-label {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.kanban-lane-count {
+  font-size: 1.15rem;
+  font-weight: 700;
+  min-width: 1.5ch;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Card dimming when a lane filter is active */
+.repo-card.kanban-dimmed {
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+/* ── Top Pick bar ────────────────────────────────────────── */
+
+.top-pick-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  margin-top: 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.top-pick-label {
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.top-pick-action {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--text-soft);
+}
+
+.top-pick-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.top-pick-link:hover {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.55);
+}
+
+html[data-theme="light"] .top-pick-link {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+html[data-theme="light"] .top-pick-link:hover {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+/* ── Responsive: collapse lane strip at ≤ 640px ─────────── */
+
+@media (max-width: 640px) {
+  .kanban-strip {
+    grid-template-columns: repeat(4, auto);
+    justify-content: start;
+    overflow-x: auto;
+    gap: 0.35rem;
+    padding-bottom: 0.1rem;
+  }
+
+  .kanban-lane {
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0.55rem;
+    gap: 0.15rem;
+    min-width: 3.8rem;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+
+  /* Hide text label on mobile — show emoji + count pill only */
+  .kanban-lane-label {
+    display: none;
+  }
+
+  .kanban-lane-count {
+    font-size: 1rem;
+  }
+
+  .top-pick-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+}
