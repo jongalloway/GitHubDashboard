@@ -311,3 +311,22 @@ Tone buckets for `computeReleasePressureModel()` SVG indicator are deterministic
 - **Single threshold model:** No per-repo or per-org customization in Phase 1; defaults suffice for vibe-coding signal.
 
 **Integration:** Wired into app.js repo cards + index.html + css/style.css (reuses existing `--meter-good/warning/critical` CSS variables). Added 18-test suite validating tone boundaries, null-safety on missing release data, and clamping behavior. All tests passing.
+
+### D038: Phase 2 Decomposition — Three Independently Shippable Sub-Issues (Keyser, 2026-06-28)
+**Issue:** #42 | **Status:** RATIFIED
+
+Split Phase 2 scope ("chips, drill-down, snooze, Backlog→Top Pick scoring") into 3 independently shippable sub-issues at Jon's request:
+
+| # | Title | Owner Labels | Dependency |
+|---|-------|-------------|------------|
+| #55 | Lane repo chips + drill-down detail panel | squad:mcmanus, squad:hockney | None (starts immediately) |
+| #56 | Snooze repos from lanes (localStorage + restore) | squad:mcmanus, squad:hockney | Benefits from #55 for UI affordance; logic independently testable |
+| #57 | Backlog→Top Pick scoring + revival suggestion | squad:mcmanus, squad:keyser, squad:hockney | Builds on Backlog strip (#44); snooze integration (#56) additive |
+
+**Rationale:**
+- **3 issues, not 4:** Scoring algorithm and Top Pick revival UI are tightly coupled (can't ship one without the other), so combined into one issue.
+- **All client-side:** Consistent with project constraints — no new API calls, localStorage persistence, no backend.
+- **Each independently testable:** Pure functions (`scoreBacklogRepo`, snooze expiry math, chip rendering) all unit-testable via Vitest.
+- **Sequencing:** #55 can start immediately; #56 benefits from #55 UI but logic is standalone; #57 is independent of both but integrates snooze filtering as additive work.
+
+**Updated #42:** Checklist updated with new sub-issue links. Phase 2 tracking split across three tracking issues for clarity.

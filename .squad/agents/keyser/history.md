@@ -81,3 +81,9 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - **Drift risk flagged (non-blocking):** `CI_FAILING` set and `WORKING_WINDOW_MS = 14d` are duplicated verbatim between `kanban-strip.js` and `backlog-strip.js`. `isBacklogRepo` re-implements Blocked/Needs-Attention checks rather than calling `deriveKanbanLane`. Values are identical today but could diverge if CI conclusions expand. Recommend extracting a shared `GHD.KanbanConstants` module if `CI_FAILING` ever changes.
 - **No-double-count pattern confirmed:** `backlogSet` is excluded from `pinnedRepos`, `normalRepos`, AND the `renderKanbanStrip` input in one consistent pass in `renderRepos()`. Any future strip feature should follow this same three-exclusion pattern.
 - **UX edge case noted:** Pinned repos aging into the 15–120d window silently disappear from the card grid into the collapsed backlog strip. Technically correct per P006 but worth a future UX decision on pin-vs-backlog interaction.
+
+## Learnings (2026-06-28 — Issue #42 Phase 2 Decomposition)
+
+- Decomposed Phase 2 into 3 sub-issues (#55, #56, #57). Key split rationale: scoring algorithm + revival UI are inseparable (ship together), but chips/drill-down and snooze are independently shippable.
+- Snooze logic is testable without chips UI (pure localStorage expiry math), but the snooze *affordance* (button) lives on chips — soft dependency, not blocking.
+- Added `squad:keyser` label to #57 (scoring algorithm) for architecture review of the heuristic before implementation. Pattern: label yourself on issues requiring design sign-off, not just implementation.
