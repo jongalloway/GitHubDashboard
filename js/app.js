@@ -61,7 +61,7 @@
   let _lastAutoRefreshAt = 0;
   let _authUIState = 'public';
 
-  // ── Pin / Close / Notes / Release-NA state ────────────────
+  // ── Pin / Close / Notes / Release-NA / Snooze state ─────
   const PINNED_KEY = 'ghd-pinned';
   const CLOSED_KEY = 'ghd-closed';
   const NOTES_KEY = 'ghd-notes';
@@ -130,6 +130,20 @@
     const closed = getClosedRepos();
     closed.delete(repoName);
     _saveClosed(closed);
+    renderRepos();
+  }
+
+  function _snoozeRepo(repoName, durationDays) {
+    const Snooze = window.GHD && window.GHD.Snooze;
+    if (!Snooze) return;
+    Snooze.snoozeRepo(repoName, durationDays);
+    renderRepos();
+  }
+
+  function _unsnoozeRepo(repoName) {
+    const Snooze = window.GHD && window.GHD.Snooze;
+    if (!Snooze) return;
+    Snooze.unsnoozeRepo(repoName);
     renderRepos();
   }
 
@@ -791,6 +805,11 @@
     const closed = getClosedRepos();
     const now    = Date.now();
 
+    // Prune expired snooze entries on each render cycle (housekeeping)
+    const Snooze = window.GHD && window.GHD.Snooze;
+    if (Snooze) Snooze.pruneExpired(now);
+    const snoozedSet = Snooze ? Snooze.getSnoozedRepos(now) : new Set();
+
     // Compute backlog set — these repos are pulled out of the main card grid
     const BacklogStrip = window.GHD && window.GHD.BacklogStrip;
     const backlogSet   = new Set();
@@ -819,12 +838,27 @@
     renderHeaderSparkline(_currentRepos);
 
     // Kanban strip — must run after cards are in the DOM
-    // Backlog repos are excluded so the Healthy lane count is accurate
+    // Backlog repos AND snoozed repos are excluded so lane counts are accurate
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
-      const kanbanRepos = _currentRepos.filter(r => !closed.has(r.name) && !backlogSet.has(r.name));
-      const backlogReposArr = _currentRepos.filter(r => backlogSet.has(r.name));
-      KanbanStrip.renderKanbanStrip(kanbanRepos, backlogReposArr);
+      const kanbanRepos = _currentRepos.filter(
+        r => !closed.has(r.name) && !backlogSet.has(r.name) && !snoozedSet.has(r.name)
+      );
+      // Snoozed repos also excluded from backlog revival scoring
+      const backlogReposArr = _currentRepos.filter(
+        r => backlogSet.has(r.name) && !snoozedSet.has(r.name)
+      );
+      KanbanStrip.renderKanbanStrip(kanbanRepos, backlogReposArr, {
+        onSnooze: (repoName, days) => {
+          if (!Snooze) return;
+          if (days === 0) {
+            Snooze.unsnoozeRepo(repoName);
+          } else {
+            Snooze.snoozeRepo(repoName, days);
+          }
+          renderRepos();
+        }
+      });
     }
 
     // Backlog strip — collapsible "pick back up" strip below the Kanban board
@@ -881,6 +915,12 @@
     const reviewItems = Array.isArray(pendingReviews.items) ? pendingReviews.items.slice(0, 3) : [];
 
     card.className = `repo-card status-${status}${isPinned ? ' is-pinned' : ''}`;
+
+    // Mark snoozed cards visually
+    const Snooze = window.GHD && window.GHD.Snooze;
+    if (Snooze && Snooze.isSnoozed(repo.name)) {
+      card.classList.add('is-snoozed');
+    }
 
     const headerRight = document.createElement('div');
     headerRight.className = 'repo-header-right';
@@ -979,6 +1019,32 @@
     closeBtn.addEventListener('click', (e) => { e.preventDefault(); _closeRepo(repo.name); });
 
     const buttons = [pinBtn, noteBtn];
+
+    // Snooze button — shown when snoozed (un-snooze) or as a snooze action
+    const Snooze = window.GHD && window.GHD.Snooze;
+    if (Snooze) {
+      const currentlySnoozed = Snooze.isSnoozed(repo.name);
+      const snoozeBtn = document.createElement('button');
+      snoozeBtn.type = 'button';
+      if (currentlySnoozed) {
+        snoozeBtn.className = 'card-btn snooze-btn active';
+        snoozeBtn.title = 'Un-snooze';
+        snoozeBtn.setAttribute('aria-label', 'Remove snooze — show in Kanban lanes again');
+        snoozeBtn.textContent = '💤';
+        snoozeBtn.addEventListener('click', (e) => { e.preventDefault(); _unsnoozeRepo(repo.name); });
+      } else {
+        snoozeBtn.className = 'card-btn snooze-btn';
+        snoozeBtn.title = 'Snooze (hide from lanes)';
+        snoozeBtn.setAttribute('aria-label', 'Snooze repo — temporarily hide from Kanban lanes');
+        snoozeBtn.textContent = '💤';
+        snoozeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Default snooze: 3 days. For granular control, use the chip detail panel.
+          _snoozeRepo(repo.name, 3);
+        });
+      }
+      buttons.push(snoozeBtn);
+    }
 
     if (GHD.Auth.hasIssueWriteAccess()) {
       const issueBtn = document.createElement('button');

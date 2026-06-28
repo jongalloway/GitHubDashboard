@@ -160,10 +160,78 @@ window.GHD = window.GHD || {};
     return panel;
   }
 
-  function _openPanel(container, repo, laneId, reasons, chipEl) {
+  /**
+   * Build the snooze action section for the detail panel.
+   * Shows duration picker when the repo is not snoozed; un-snooze button when it is.
+   *
+   * @param {Object}   repo
+   * @param {Function} onSnooze  - (repoName: string, days: number) => void
+   *                               days=0 means un-snooze
+   * @param {number}   [now]     - epoch ms (defaults to Date.now())
+   * @returns {HTMLElement}
+   */
+  function _buildSnoozeSection(repo, onSnooze, now) {
+    const ts = typeof now === 'number' ? now : Date.now();
+    const section = document.createElement('div');
+    section.className = 'kanban-detail-snooze';
+
+    const Snooze = (typeof window !== 'undefined' ? window : globalThis).GHD &&
+                   (typeof window !== 'undefined' ? window : globalThis).GHD.Snooze;
+    const snoozed = Snooze && Snooze.isSnoozed(repo.name, ts);
+
+    if (snoozed) {
+      const until = Snooze.getSnoozedUntil(repo.name);
+      const label = document.createElement('span');
+      label.className = 'snooze-indicator';
+      label.textContent = `💤 Snoozed until ${until ? new Date(until).toLocaleDateString() : '?'}`;
+      section.appendChild(label);
+
+      const unsnoozeBtn = document.createElement('button');
+      unsnoozeBtn.type = 'button';
+      unsnoozeBtn.className = 'kanban-detail-snooze-btn kanban-detail-unsnooze-btn';
+      unsnoozeBtn.textContent = 'Un-snooze';
+      unsnoozeBtn.setAttribute('aria-label',
+        `Un-snooze ${_escapeHtml(repo.full_name || repo.name)}`);
+      unsnoozeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onSnooze(repo.name, 0);
+        _closePanel();
+      });
+      section.appendChild(unsnoozeBtn);
+    } else {
+      const label = document.createElement('span');
+      label.className = 'snooze-label';
+      label.textContent = 'Snooze:';
+      section.appendChild(label);
+
+      for (const days of [1, 3, 7]) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'kanban-detail-snooze-btn';
+        btn.textContent = `${days}d`;
+        btn.setAttribute('aria-label',
+          `Snooze ${_escapeHtml(repo.full_name || repo.name)} for ${days} day${days !== 1 ? 's' : ''}`);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onSnooze(repo.name, days);
+          _closePanel();
+        });
+        section.appendChild(btn);
+      }
+    }
+
+    return section;
+  }
+
+  function _openPanel(container, repo, laneId, reasons, chipEl, onSnooze) {
     _closePanel();
 
     const panel = _buildDetailPanel(repo, laneId, reasons);
+
+    // Append snooze section when a callback is provided
+    if (typeof onSnooze === 'function') {
+      panel.appendChild(_buildSnoozeSection(repo, onSnooze));
+    }
 
     // Insert panel after .kanban-strip, before the top-pick-bar (or end of container)
     const strip = container.querySelector('.kanban-strip');
@@ -189,11 +257,12 @@ window.GHD = window.GHD || {};
    * Chip rows are appended as direct children of .kanban-strip so they sit in
    * row 2 of the 4-column CSS grid, one column per lane.
    *
-   * @param {HTMLElement} container - the #kanban-strip-region element
-   * @param {Object}      laneMap   - { 'blocked': [...], 'needs-attention': [...], ... }
-   * @param {number}      [now]     - epoch ms (defaults to Date.now())
+   * @param {HTMLElement} container  - the #kanban-strip-region element
+   * @param {Object}      laneMap    - { 'blocked': [...], 'needs-attention': [...], ... }
+   * @param {number}      [now]      - epoch ms (defaults to Date.now())
+   * @param {Function}    [onSnooze] - (repoName: string, days: number) => void; days=0 = un-snooze
    */
-  function renderLaneChips(container, laneMap, now) {
+  function renderLaneChips(container, laneMap, now, onSnooze) {
     if (!container || !laneMap) return;
 
     // Reset any panel/state leftover from a previous render
@@ -240,7 +309,7 @@ window.GHD = window.GHD || {};
             if (_openChip && _openChip.repoName === repo.name && _openChip.laneId === laneId) {
               _closePanel();
             } else {
-              _openPanel(container, repo, laneId, reasons, chip);
+              _openPanel(container, repo, laneId, reasons, chip, onSnooze);
             }
           });
 
@@ -264,6 +333,7 @@ window.GHD = window.GHD || {};
     deriveLanePlacementReasons,
     renderLaneChips,
     _buildDetailPanel,
+    _buildSnoozeSection,
     _closePanel
   };
 })(window.GHD);

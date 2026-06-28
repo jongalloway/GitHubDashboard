@@ -39,7 +39,26 @@
 - **Keyser:** APPROVE + drift-risk note: `CI_FAILING` set and `WORKING_WINDOW_MS` duplicated from kanban-strip.js. Values currently consistent; follow-up: extract `GHD.KanbanConstants` if set expands.
 - **Hockney:** Initial REJECT due to gap #7 (grid-exclusion dedup untested). Gap closed by Hockney with 2 new integration tests. Final: APPROVED.
 
-## Completed — Issue #55: Lane Repo Chips + Drill-Down Detail Panel (2026-06-28)
+## Completed — Issue #56: Snooze repos from Kanban lanes (localStorage + restore) (2026-06-28)
+
+- ✅ DELIVERED: `js/snooze.js` — self-contained IIFE module on `window.GHD.Snooze` + `module.exports`
+- ✅ API: `snoozeRepo(name, days, now)` / `unsnoozeRepo` / `isSnoozed` / `getSnoozedUntil` / `getSnoozedRepos(now)` / `pruneExpired(now)`
+- ✅ Schema: `ghd-snooze-v1` → `{ version: 1, entries: [{ repo, until }] }` — single-key atomic storage, versioned for future migration
+- ✅ Bounded/pruned: MAX_ENTRIES=50; expired entries removed on every write + every render cycle
+- ✅ Chip detail panel: `_buildSnoozeSection` appended in `_openPanel` — 1d/3d/7d picker + un-snooze; `renderLaneChips` takes optional `onSnooze` 4th param
+- ✅ `renderKanbanStrip` accepts `opts.onSnooze`; snoozed repos excluded from lane counts + backlog revival scoring
+- ✅ `app.js`: `snoozedSet` computed per render; `kanbanRepos` + `backlogReposArr` both filter snoozed; `is-snoozed` CSS class on cards; 💤 card action button (snooze/unsnooze)
+- ✅ 39 new Vitest tests (294 total, all pass). Covers persist/expire/restore, pruning, MAX_ENTRIES cap, schema robustness, scoring integration.
+- ✅ PR: #61 — `Closes #56`, `Part of #42 Phase 2`
+
+## Key Learnings
+
+- **Snooze storage pattern (2026-06-28):** Single versioned JSON blob (`ghd-snooze-v1`) beats per-repo keys. Atomic read/write, one migration target, consistent with existing `ghd-pinned`/`ghd-closed` keys in app.js. `pruneExpired` runs on every render cycle — housekeeping is free when render is already triggered.
+- **Callback threading pattern (2026-06-28):** For actions that cross module boundaries (chip → snooze → re-render), thread a callback through the render chain rather than exposing a global hook. `onSnooze: (name, days) => {}` passed `renderRepos` → `renderKanbanStrip(opts)` → `renderLaneChips(onSnooze)` → `_openPanel(onSnooze)`. Clean, testable, no global side-channel.
+- **Un-snooze signal convention (2026-06-28):** Using `days=0` as the un-snooze signal through the `onSnooze` callback (rather than a separate `onUnsnooze` callback) keeps the chip panel interface to one function. The callsite checks `days === 0` and routes to `unsnoozeRepo`. Simple and self-documenting.
+- **Two un-snooze entry points (2026-06-28):** Chip detail panel (granular picker, primary path per spec) + card action button (quick toggle, fallback). Without two paths, snoozed repos in the card grid have no escape hatch once they're hidden from lanes and the panel is gone.
+
+
 
 - ✅ DELIVERED: `js/kanban-lane-chips.js` — self-contained module on `window.GHD.KanbanLaneChips`
 - ✅ Pure function `deriveLanePlacementReasons(repo, lane, now)` — derives human-readable reasons for lane placement from existing signals (CI conclusion, security alert counts, Dependabot PR counts, push age)
