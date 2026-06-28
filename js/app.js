@@ -1231,6 +1231,11 @@
       wrapper.appendChild(recencyBar);
     }
 
+    const releasePressure = window.GHD?.ReleasePressureIndicator?.buildReleasePressureIndicator(repo);
+    if (releasePressure) {
+      wrapper.appendChild(releasePressure);
+    }
+
     if (topics.length) {
       const topicsRow = document.createElement('div');
       topicsRow.className = 'repo-topics';
