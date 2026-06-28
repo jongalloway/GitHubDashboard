@@ -2,83 +2,6 @@
 
 ## Active Decisions
 
-### D001: PRD Draft — Static-Site Architecture (Keyser, 2026-05-23)
-Draft the PRD around a static-site architecture with GitHub Actions generating a JSON data artifact for a GitHub Pages dashboard. Defaults: top 10 recent public repos, exclude archived/forks, daily refresh, vanilla HTML/CSS/JS.
-
-### D002: PRD Reusable Template Shift (Keyser, 2026-05-23)
-Revise the PRD so GitHubDashboard is a reusable template for any GitHub user, with the monitored account provided through `GITHUB_USERNAME` repository configuration instead of hardcoded usernames.
-
-### D003: PRD Copilot Focus Shift (Keyser, 2026-05-23)
-Revise the PRD so GitHubDashboard is primarily a cross-repository dashboard for developers using GitHub Copilot to manage many active projects. Surface release readiness, Copilot activity heuristics, priority issues, and pending reviews.
-
-### D004: Phase 1 Pipeline Delivery (Fenster, 2026-05-23)
-Ship Phase 1 as a single GitHub Actions workflow that refreshes `data/dashboard.json`, commits generated data back to repository, and stages GitHub Pages artifact from repo static assets plus generated data file. Include temporary deployment-only `index.html` fallback.
-
-### D005: Dashboard UI Asset Contract (McManus, 2026-05-23)
-Ship the dashboard UI as a plain static asset bundle (`index.html`, `css/style.css`, `js/app.js`) with `data/dashboard.json` as the only runtime data dependency. Client-side rendering, framework-free, GitHub Pages compatible.
-
-## Governance
-
-- All meaningful changes require team consensus
-- Document architectural decisions here
-- Keep history focused on work, decisions focused on direction
-
-## 2026-06 Testing Consolidation Decisions
-
-### D006: Canonical Test Directory And Node Vitest Lane (McManus, 2026-06-01)
-Use `test/` as the single canonical Vitest directory for default local and CI runtime, with `vitest.config.js` targeting `test/**/*.test.js` under `environment: 'node'`.
-
-### D007: Minimal Default Test Command Contract (McManus, 2026-06-01)
-Keep `npm test` mapped to `vitest run` as the strict default lane and avoid requiring `jsdom` in the baseline path.
-
-### D008: CI Watches Canonical Test Inputs (Fenster, 2026-06-01)
-Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config.js`, `package*.json`) as well as source paths that tests exercise (`js/**`, `css/**`, `scripts/**`, `data/**`, `index.html`, `manifest.json`, `sw.js`) and the workflow file itself, then execute `npm test` directly to enforce failures.
-
-### D009: CI Test Workflow Separation From Pages Deployment (Fenster, 2026-06-01)
-Run tests in dedicated `ci-tests.yml` instead of embedding test execution into `update-dashboard.yml`, preserving clean branch-aware validation and deployment behavior.
-
-### D010: Client-Only Architecture — Remove Server-Side Data Pipeline (Fenster, 2026-05-24)
-Remove `data/dashboard.json` from GitHub Pages deployment entirely. Deploy only static app shell (HTML/CSS/JS/icons/manifest/sw.js). All dashboard data fetched client-side via browser GitHub API calls using stored Personal Access Token. Removes requirement to configure `DASHBOARD_OWNER` repository variable and removes daily scheduled workflow runs.
-
-### D011: Squad Detection in Data Pipelines (Fenster, 2026-05-23)
-Add Squad detection to both pipelines (server `scripts/fetch-data.js` and browser `js/github-client.js`) using `.squad/team.md` existence check plus branch/PR prefix filtering. Emit `squad_activity` object with same shape from both pipelines to keep dashboard.json contract uniform.
-
-### D012: Branch Staleness Display Strategy (Keyser, 2026-05-24)
-Use total non-default branch count as MVP proxy for staleness. No additional API calls. Signal threshold: `branch_count > 5` → `many-branches`. Badge tone: `count > 10` → `warning`, else `neutral`.
-
-### D013: Copilot Agent/Bot Activity Tracking (Keyser, 2026-05-24)
-Extend Copilot detection to include `[bot]`-suffix authors (Dependabot, Renovate, etc.). Add `isBotAuthor(login)` helper, compute `bot_pr_count`, add `bot-pr` signal. Improve label to show `'Active (3 PRs)'` / `'Active (2 branches)'`. Only count open PRs — merged/closed bot activity deferred.
-
-### D014: Show Discussion Activity per Repo (Keyser, 2026-05-24)
-Use `has_discussions` from existing REST repo object. No additional API calls required. Add `buildDiscussionsBadge(repo)` returning neutral badge when `discussions_enabled` is true. GraphQL option rejected — added complexity not justified for `value:low` feature.
-
-### D015: PRs #18–#26 Batch Merge (Keyser, 2026-05-24)
-Nine squad feature PRs merged into main in dependency order: CI workflow badge, Dependabot security badge, last commit activity badge, code scanning badge, branch count badge, bot PR detection, traffic views/clones, discussions enabled, license + README health badge. All conflicts resolved by keeping both sets of changes (additive merges).
-
-### D016: Badge Tooltips Implementation (McManus, 2026-05-25)
-Implement rich hover tooltips on all repo dashboard badges using CSS `[data-tooltip]::after` pseudo-element approach — no JavaScript required. `buildBadge()` signature extended with optional 4th tooltip parameter. Tooltips auto-adapt to user's theme. Multi-line supported via `white-space: pre-line`.
-
-### D017: Light Mode, PWA, and Squad Badge UI (McManus, 2026-05-23)
-Theme architecture: dark in `:root`, light overrides via `html[data-theme="light"]`. Flash prevention via `js/theme.js` in `<head>` with immediate `init()` IIFE. PWA using single SVG icon with `"sizes": "any"` and maskable purpose. Squad badge conditional on `squad_enabled` (unlike Copilot which always renders).
-
-### D018: Replace Device Flow OAuth with PAT Modal Auth (McManus, 2026-05-23)
-Replace GitHub App Device Flow with simple fine-grained Personal Access Token (PAT) modal input. Single owner use case — OAuth complexity unjustified. PAT persists in localStorage (`ghd_token`, `ghd_login`). Validation on page load via silent `GET /user` call. No expiry or owner mismatch checking.
-
-### D019: Public Owner Detection & Unauthenticated Dashboard View (McManus, 2026-05-25)
-Owner resolution priority: `config.json` `"owner"` field > GitHub Pages hostname detection > null (sign-in prompt). Skip branch-list API calls in public mode (save 1 per repo). Auth-only fields default to null/empty: `workflow_status`, `security_alerts`, `code_scanning`, `traffic`, `has_readme`. Non-draft PR filtering skipped.
-
-### D020: Security Badge Design (McManus, 2026-05-24)
-Hide security badge when total === 0 (avoids noise). Tone hierarchy: danger (red) for any critical, warning (yellow) for high without critical, neutral (grey) for medium/low only. List security alerts first in next_steps summary. No separate "scope required" UI affordance when API returns 403.
-
-### D021: Minimal Default Test Command Contract (McManus, 2026-06-01)
-Keep `npm test` mapped to `vitest run` as strict default lane. Scope to `test/**/*.test.js` with `environment: 'node'`. Avoid requiring `jsdom` in baseline path. Covers high-value unit tests (data heuristics, signal logic, auth, cache).
-
-### D022: CI Watches Canonical Test Inputs (Fenster, 2026-06-01)
-Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config.js`, `package*.json`) as well as source paths tests exercise (`js/**`, `css/**`, `scripts/**`, `data/**`, `index.html`, `manifest.json`, `sw.js`) and workflow file itself, then execute `npm test` directly.
-
-### D023: Workflow Badge Link Wrapping Strategy (McManus, 2026-05-24)
-When `workflow_status.latest_run.html_url` present, CI badge wrapped in `<a>` tag (opens in new tab) rather than adding button/icon affordance. Consistent with GitHub's own badge behavior. Badge-link class resets anchor styling.
-
 ### D024: Phase 1 Kanban Strip Lane Derivation (McManus, 2026-06-27)
 **Issue:** #43 | **Branch:** `squad/43-kanban-strip` | **Status:** APPROVED
 
@@ -122,6 +45,45 @@ Three refinements applied to Phase 1 Kanban strip (code-review comments post-app
 3. **Export `_isDependabotPR` and `_findTopPick`:** Added to `GHD.KanbanStrip` exports for testability; 14 new unit tests added (68 → 82 tests passing). Tests explicitly validate `url` return value (ties decision #2).
 
 No behavior changes. Tests: 68 → 82 passing (all green).
+
+### D030: Blocked-Lane Data Pipeline — Workflow Status + Security Alerts (Fenster, 2026-06-27)
+**Issue:** #47 | **Branch:** `squad/47-blocked-lane-data` | **Status:** APPROVED  
+**PR:** #49 (Closes #47) | **Reviewed by:** Keyser | **Tested by:** Hockney
+
+Implement `workflow_status` and `security_alerts` fetching in the **authenticated (PAT) browser path** of `js/github-client.js` so the Kanban Blocked lane activates for repos with failing CI or open Dependabot security alerts.
+
+**Endpoint choices:**
+- Workflow status: `GET /repos/{owner}/{repo}/actions/runs?per_page=1` — single call returning latest run conclusion across all workflows; minimal signal for Blocked lane check.
+- Security alerts: `GET /repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=100` — Dependabot severity maps cleanly to four buckets (`critical`, `high`, `medium`, `low`).
+
+**Degradation:** Any non-OK response (403, 404, 422, missing scope) returns `has_workflows: false` / `total: 0` silently — no console errors, no UI artifacts. Consistent with D019 (auth-only fields default to empty).
+
+**Architecture:**
+- Pure parse helpers (`_parseWorkflowRun`, `_parseSecurityAlerts`) exported on `GHD.GitHubClient` for testability.
+- Soft HTTP helpers (`_fetchJsonSoft`, `_paginateSoft`) added as graceful degradation layer.
+- Parallel execution in existing `Promise.all` (+2 API calls per repo, reuses concurrency limiter).
+- Public path (`_fetchRepoDetailsPublic`) unchanged — stays zeroed per D028 ruling.
+
+**PAT Scope caveat:** Silent-zero is acceptable for Blocked lane. When PAT lacks `security_events` scope, dashboard works correctly with fewer blocking signals. Informational note in README recommended (non-blocking for merge).
+
+**Test coverage:** 27 new tests covering parser edge cases, all four blocking conclusions, non-blocking conclusions (`cancelled`, `neutral`, `skipped`), severity counting with fallbacks, case-insensitive matching, and full integration tests including 403/404 degradation. 120 total tests passing, no regressions.
+
+### D031: Issue #47 Test Coverage Gaps — Identification and Closure (Hockney, 2026-06-27)
+**Issue:** #47 | **Branch:** `squad/47-blocked-lane-data` | **Status:** REJECT → CLOSED
+
+**Initial rejection identified four coverage gaps:**
+1. Multi-repo isolation NOT tested (CRITICAL) — `_runWithConcurrency` + `filter(Boolean)` path never exercised with multiple repos where one fails.
+2. Network exception path (`_fetchJsonSoft`/`_paginateSoft` catch branch) NOT tested — all degradation tests used HTTP 403/404, never actual thrown exceptions.
+3. Non-blocking conclusions (`cancelled`, `neutral`, `skipped`) NOT asserted — only `success` and `in-progress/null` tested as non-blocking.
+4. `_paginateSoft` pagination (Link-header multi-page) NOT tested — no verification of multi-page accumulation or pagination error handling.
+
+**All four gaps closed:** 11 new tests added covering:
+- Multi-repo isolation (2 tests): 403 on one repo while others succeed; hard fetch exception on one repo triggers outer catch + fallback.
+- Network exceptions (3 tests): `TypeError`, `AbortError` on first/subsequent fetch attempts.
+- Non-blocking conclusions (3 tests): `cancelled`, `neutral`, `skipped` each confirmed non-blocking.
+- Pagination (3 tests): 2-page Link-header accumulation; mid-pagination 403 stops cleanly; mid-pagination network throw swallowed.
+
+**Final result:** 120 tests passing (was 109), no production defects, all regressions addressed. Rejection resolved.
 
 ## Proposals / Under Discussion
 
