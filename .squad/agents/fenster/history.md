@@ -77,6 +77,14 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - `_paginateSoft` was already safe (used `const page = await response.json()` inside try); only `_fetchJsonSoft` needed fixing.
 - **README PAT scope accuracy:** The classic `repo` scope grants write access — it is NOT read-only even if the dashboard only reads. Avoid describing it as "read-only"; instead, note the dashboard only performs reads but recommend fine-grained tokens for least-privilege users.
 
+## Learnings (2026-06-28 Release Workflow Audit)
+
+- This repo uses **Vitest** (`npm test`) — NEVER `node --test test/*.cjs`. All test files are `.test.js`; there are zero `.cjs` files. The correct CI command is `npm ci` then `npm test`.
+- Squad-CLI installs several boilerplate workflows (`squad-release.yml`, `squad-preview.yml`, `squad-promote.yml`, `squad-ci.yml`, `squad-insider-release.yml`, `squad-docs.yml`) designed for a `dev → preview → insider → main` npm release channel model. **None of that applies to this static dashboard.** Those workflows should be removed.
+- The five squad-CLI release/CI workflows all reference branches (`dev`, `preview`, `insider`) that do not exist in this repo, causing silent skips or active failures depending on trigger type.
+- For a static site with no versioned npm releases, `squad-release.yml` on a `push: branches: [main]` trigger is actively harmful — it fails on every merge. Deletion is always the right call when the workflow's entire purpose (version tagging + npm release) does not match the project model.
+- Functional squad workflows worth keeping: `squad-heartbeat.yml` (issue triage + Copilot auto-assign), `squad-issue-assign.yml` (label → assignment routing), `squad-label-enforce.yml` (label namespace enforcement), `squad-triage.yml` (squad inbox routing), `sync-squad-labels.yml` (label sync from team.md).
+
 ## Learnings (2026-06-27 PAT Scopes Documentation)
 
 - Added "### PAT Scopes" subsection to README.md right after Quick Setup to document scope requirements for Blocked lane security alerts (`security_events` scope) and core features (`repo` scope), emphasizing graceful degradation when scopes are absent.
