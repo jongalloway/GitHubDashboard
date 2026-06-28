@@ -78,3 +78,61 @@ Align `ci-tests.yml` to monitor canonical test inputs (`test/**`, `vitest.config
 
 ### D023: Workflow Badge Link Wrapping Strategy (McManus, 2026-05-24)
 When `workflow_status.latest_run.html_url` present, CI badge wrapped in `<a>` tag (opens in new tab) rather than adding button/icon affordance. Consistent with GitHub's own badge behavior. Badge-link class resets anchor styling.
+
+## Proposals / Under Discussion
+
+### P001: "What Should I Work On Next?" — Vibe-Coding Kanban Lanes (Keyser, 2026-06-27)
+**Status:** Proposal (under discussion)  
+**Requested by:** Jon Galloway
+
+Add a compact Kanban lane header + priority-ranked "next action" recommendation to help a developer with many active vibe-coded projects glance at the dashboard and immediately know: (1) which project needs attention, (2) what the right-sized task is for a free 30-minute slot.
+
+**Five auto-derived lanes** (no new API calls needed, all data exists in existing signals):
+- 🚨 **Blocked:** CI failing OR critical/high security alerts
+- 👀 **Needs Review:** Open PRs awaiting human review (including bot PRs)
+- 🔧 **Working:** Recent activity within 7 days AND no blocking signals
+- 📦 **Release Ready:** 10+ commits since last release AND not blocked
+- ✅ **Up-to-Date:** None of the above — healthy, no action needed
+
+**Priority scoring heuristic** (higher = do first): Critical security (+50), CI failing (+40), Bot PRs ready (+30), Human PRs awaiting review (+25), Release overdue (+15), Priority issues (+10), Copilot PRs ready (+20).
+
+**Effort buckets:** ⚡ Quick win (< 5 min), 🔨 Focused work (15-30 min), 🏗️ Deep work (> 30 min).
+
+**State overrides:** Pin (existing), Close (existing), Snooze N days (new localStorage), Manual lane override (new localStorage), Notes (existing), Release N/A (existing).
+
+**Phased rollout:** Phase 1 = Kanban header + "Suggested Next" banner + effort badges + snooze button. Phase 2 = drill-down actions + lane override UI + sort-by-priority. Phase 3 = Gist-backed sync + historical trends + keyboard shortcuts.
+
+**Key insight:** UI/UX reorganization of existing signals into actionable priority queue. Zero new API calls for Phase 1. Engineering work: ~50 lines scoring logic + ~100 lines Kanban component.
+
+**Open questions:** Lane count optimal? Stale threshold (30 vs 14 days)? Effort buckets useful? Include all repos or just active 10? Inline "Merge All Dependabot" button or just deep-links?
+
+**Risks:** localStorage loss on cache clear (Phase 3 mitigation: export/import), scoring weights feeling wrong (make configurable), stale lane overrides (prune on refresh).
+
+---
+
+### P002: UX Proposal — Vibe-Coding Glance-and-Go Kanban Board (McManus, 2026-06-27)
+**Status:** Proposal (under discussion)  
+**Requested by:** Jon Galloway  
+**Needs Keyser review for:** lane state persistence contract, write-action PAT scope requirements
+
+Add a compact 5-lane Kanban header board above existing repo-card grid. Lanes map to already-computed `next_steps.status` signals. No new API calls needed. State overrides (pin, snooze, manual lane move) persist in `localStorage` only.
+
+**Lane mapping:**
+| Lane | Signal Source | Color |
+|------|--------------|-------|
+| Blocked | `needs-attention` + critical security / CI failing | Red `--danger` |
+| Needs Attention | `needs-attention` (non-critical) | Amber `--warning` |
+| In Progress | `active` + commit in last 14d | Blue `--info` |
+| Up-To-Date | `quiet` + no overdue signals | Green `--success` |
+| Idle / Stale | any + last commit > 90d | Grey `--neutral` |
+
+A single "Top Pick" callout bar sits between Kanban header and repo cards, surfacing best 30-min action across all repos.
+
+**Interaction model:** glance board → click chip → scroll-to or expand card → act via one-click links/affordances.
+
+**Tradeoffs:**
+- **Drag-and-drop:** Native HTML5 drag API possible but keyboard fallback mandatory. Recommend context-menu "move to lane" button as primary, drag as progressive enhancement.
+- **localStorage-only state:** Per-browser only (acceptable for solo vibe-coding); cross-device sync deferred to Phase 3 (GitHub Gist option).
+- **Mobile density:** 5 horizontal lanes won't fit < 640 px. Collapse to vertical scrollable pill-row or single "Focus" lane with count badges.
+- **Write actions (merge Dependabot):** Requires `pull_requests: write` PAT scope (not guaranteed). Must check PAT scopes or gracefully degrade to GitHub link.
+- **Top Pick algorithm:** Needs Keyser sign-off on scoring weights (data/state decision). Simple scoring: security > CI > review count > release > stale.
