@@ -1980,3 +1980,83 @@ html[data-theme="light"] .top-pick-link--backlog:hover {
     padding-bottom: 0.1rem;
   }
 }
+
+/* ── Snooze — issue #56 ─────────────────────────────────────────────────── */
+
+/* Card-level snoozed state */
+.repo-card.is-snoozed {
+  opacity: 0.6;
+  border-color: var(--quiet-soft);
+}
+.repo-card.is-snoozed:hover {
+  opacity: 0.85;
+}
+
+/* Snooze button in card actions */
+.card-btn.snooze-btn {
+  font-size: 0.82rem;
+  opacity: 0.55;
+}
+.card-btn.snooze-btn:hover,
+.card-btn.snooze-btn.active {
+  opacity: 1;
+  color: var(--squad);
+}
+
+/* Snooze picker row inside kanban detail panel */
+.kanban-detail-snooze {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+}
+
+.snooze-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.snooze-indicator {
+  font-size: 0.78rem;
+  color: var(--squad);
+  white-space: nowrap;
+}
+
+.kanban-detail-snooze-btn {
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated-strong);
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.kanban-detail-snooze-btn:hover {
+  border-color: var(--squad);
+  color: var(--squad);
+  background: var(--squad-soft);
+}
+
+.kanban-detail-unsnooze-btn {
+  border-color: var(--squad);
+  color: var(--squad);
+}
+.kanban-detail-unsnooze-btn:hover {
+  background: var(--squad-soft);
+}
+
+@media (max-width: 640px) {
+  .kanban-detail-snooze {
+    padding-top: 0.5rem;
+    gap: 0.3rem;
+  }
+  .kanban-detail-snooze-btn {
+    padding: 0.18rem 0.4rem;
+    font-size: 0.74rem;
+  }
+}

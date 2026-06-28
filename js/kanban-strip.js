@@ -175,10 +175,12 @@ window.GHD = window.GHD || {};
    * Render the Kanban strip and Top Pick bar into #kanban-strip-region.
    * Must be called after repo cards are already in the DOM (renderRepos first).
    *
-   * @param {Array} repos          - all visible repo data objects (excludes backlog)
-   * @param {Array} [backlogRepos] - repos in the Backlog strip (for revival Top Pick)
+   * @param {Array}  repos          - all visible repo data objects (excludes backlog)
+   * @param {Array}  [backlogRepos] - repos in the Backlog strip (for revival Top Pick)
+   * @param {Object} [opts]         - optional hooks
+   * @param {Function} [opts.onSnooze] - (repoName: string, days: number) => void
    */
-  function renderKanbanStrip(repos, backlogRepos) {
+  function renderKanbanStrip(repos, backlogRepos, opts) {
     const container = document.getElementById('kanban-strip-region');
     if (!container) return;
 
@@ -245,7 +247,7 @@ window.GHD = window.GHD || {};
     // Add repo chips to each lane (issue #55 — kanban-lane-chips.js)
     const KanbanLaneChips = window.GHD && window.GHD.KanbanLaneChips;
     if (KanbanLaneChips && KanbanLaneChips.renderLaneChips) {
-      KanbanLaneChips.renderLaneChips(container, laneMap, now);
+      KanbanLaneChips.renderLaneChips(container, laneMap, now, opts && opts.onSnooze);
     }
 
     // ── Top Pick bar ────────────────────────────────────────
