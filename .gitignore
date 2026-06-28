@@ -13,3 +13,5 @@ node_modules/
 # Generated data (populated by GitHub Actions / local fetch — never commit)
 data/*
 !data/.gitkeep
+
+.squad/commit-msg.txt
