@@ -39,10 +39,27 @@
 - **Keyser:** APPROVE + drift-risk note: `CI_FAILING` set and `WORKING_WINDOW_MS` duplicated from kanban-strip.js. Values currently consistent; follow-up: extract `GHD.KanbanConstants` if set expands.
 - **Hockney:** Initial REJECT due to gap #7 (grid-exclusion dedup untested). Gap closed by Hockney with 2 new integration tests. Final: APPROVED.
 
+## Completed — Issue #55: Lane Repo Chips + Drill-Down Detail Panel (2026-06-28)
+
+- ✅ DELIVERED: `js/kanban-lane-chips.js` — self-contained module on `window.GHD.KanbanLaneChips`
+- ✅ Pure function `deriveLanePlacementReasons(repo, lane, now)` — derives human-readable reasons for lane placement from existing signals (CI conclusion, security alert counts, Dependabot PR counts, push age)
+- ✅ `renderLaneChips(container, laneMap, now)` — appends chip row divs directly to the `.kanban-strip` CSS grid as row 2 children, with explicit `grid-column` placement (data-lane attribute) for correct alignment even when some lanes are empty
+- ✅ Inline detail panel — inserts between strip and top-pick-bar, lane-coloured left border, repo link + close button + reasons list
+- ✅ Panel lifecycle: re-click chip → close, X button → close, Escape key → close (listener registered once per page)
+- ✅ `kanban-strip.js` modified: one new guarded call to `GHD.KanbanLaneChips.renderLaneChips` after strip build — progressive enhancement (absent module → no-op)
+- ✅ `index.html`: `<script src="js/kanban-lane-chips.js" defer>` added before `kanban-strip.js`
+- ✅ CSS: `.kanban-chip-row`, `.kanban-repo-chip`, `.kanban-detail-panel` + variants, mobile rules — all using existing CSS vars
+- ✅ 44 new Vitest tests (221 total, all pass). Tests use minimal mock DOM in node env to cover `_buildDetailPanel` and `renderLaneChips` chip generation.
+- ✅ No regressions to lane-filter dimming behavior
+
 ## Key Learnings
 
 - **Backlog Scoring (2026-06-28):** When building a pure scoring module, the IIFE + `module.exports` pattern from `release-pressure-indicator.js` is the correct template. Keep `now` injectable for determinism. Four orthogonal score components (recency, issues, copilot, release) with separate caps produce clean, independently-testable dimensions. Alphabetical tiebreaker on `repo.name` ensures deterministic sort without extra state.
 - **Top Pick bar extension pattern:** Extend `_renderTopPickBar` with a new `type` branch rather than a new function. Gate on lane counts *inside* `renderKanbanStrip` (where `laneMap` is computed) so the condition is in one place; access `GHD.BacklogScoring` via `window.GHD` guard to avoid hard coupling. Pass `backlogRepos` as an optional second parameter to `renderKanbanStrip` — existing callers that omit it get `undefined` and the fallback branch is simply skipped.
+- **Lane chip grid alignment (2026-06-28):** Adding feature rows to an existing CSS grid is cleanest when done via explicit `grid-column` using a `data-lane` attribute selector. This guarantees alignment with header row even when some cells are `display:none` (hidden). No JS layout logic needed; pure CSS.
+- **Mock DOM in node test env (2026-06-28):** For testing DOM-building functions without jsdom, a minimal `MockEl` class (`setAttribute/getAttribute/addEventListener/appendChild/querySelector`) is sufficient and keeps tests in the existing node environment without adding a dependency. `innerHTML` assignments are tested by checking the string content rather than querying child nodes.
+- **Escape key listener dedup:** Register once with a module-level boolean flag (`_escapeListenerAdded`), not inside the render function. Otherwise each render cycle adds a new listener.
+
 - **Release Pressure Indicator (2026-06-28):** When building a second SVG bar component, mirror the recency-bar IIFE pattern exactly — same export block (`root.GHD.X = api; module.exports = api`), same `createSvgElement` helper, same wrapper/SVG/title/track/fill structure. This makes the component Vitest-testable without any changes to the test harness.
 - **Tone bucket design:** For percent-based indicators, three equal-ish buckets (<33% good, 33–65% warning, ≥66% critical) with explicit `clamp(0, 100)` on the percent value provides clean testable boundaries and prevents overflows from high commit counts.
 - **Graceful degradation pattern:** Pure model function returns `{ hasPressure: false }` (never throws) for any missing/invalid data. Builder checks `!model.hasPressure` and returns null. This keeps both the model and the DOM layer individually testable and safe in production.
