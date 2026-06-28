@@ -151,3 +151,45 @@ For the "What Should I Work On Next?" Kanban feature, the **Top Pick 30-minute a
 **Rationale:** Validate the priority-scoring model in production before adding write-scope actions. User gets immediate value (glance → identify quick win → one click to GitHub), while richer in-app actions roll out once model is proven and user has upgraded their PAT if needed.
 
 **Dependency:** Complements P001 (architecture) and P002 (UX) — clarifies Phase 1 scope boundary around Dependabot/bot PR handling.
+
+---
+
+### P005: Kanban Lane Model — 4-Lane Simplification (Jon Galloway, 2026-06-27)
+**Status:** Proposal (direction confirmed)  
+**Requested by:** Jon Galloway  
+
+Simplify the vibe-coding Kanban board from 5 lanes to **4 lanes** to improve glance-and-go speed and reduce cognitive overhead:
+
+| Lane | Signal Source | Purpose |
+|------|--------------|---------|
+| 🔴 **Blocked** | CI failing OR critical/high security alerts | Requires immediate fix |
+| 🟡 **Needs Attention** | Open PRs awaiting human review (non-critical signals) | Waiting on me |
+| 🔵 **Working** | Recent activity pushed within last **14 days** | Currently active |
+| 🟢 **Healthy** | No blockers, no recent activity beyond 14 days | Stable/maintained |
+
+**Key Change:** Collapse `Up-to-Date` and `Idle/Stale` (from original P001) into single `Healthy` lane. Rationale: fewer lanes = faster mental model; 14-day window covers 1–2 weekends of vibe-coding activity.
+
+---
+
+### P006: Backlog Strip — Pick-Back-Up Window 15–120 Days (Jon Galloway, 2026-06-27)
+**Status:** Proposal (direction confirmed)  
+**Requested by:** Jon Galloway  
+**Depends on:** P005 (4-lane model)  
+
+Add a **separate collapsible "📋 Backlog" strip** below the 4-lane Kanban board (NOT a 5th lane) to surface recently-stale projects worth reviving.
+
+**Definition:** Repo is Backlog when `pushed_at` is **> 14 days AND ≤ 120 days ago**, excluding repos already in Blocked/Needs Attention lanes.
+
+**Why separate strip, not lane:** The Kanban board answers "what's my **current status**?" Backlog answers "what could I **revive**?" Different affordances, different cognitive mode. Backlog repos pull out of Healthy count (no double-counting).
+
+**Rendering:** Horizontal scrollable chip row (repo name + "last pushed X weeks ago" label). Click to scroll-to or highlight full card below. Collapsed by default; expand on click.
+
+**Lifecycle:**
+- **Snooze 30d:** `localStorage` key `ghd_snooze_{repo}` = ISO timestamp
+- **Archive/Dismiss:** `localStorage` key `ghd_archived` = Set of repo names
+
+**Integration with Top Pick:** When no Blocked/Needs Attention/Working repos exist, Top Pick may suggest a Backlog revival (lowest scoring priority). Always tagged 🔨 Focused work (15–30 min).
+
+**Phasing:** Display-only strip in Phase 1.5; snooze/archive + Top Pick integration Phase 2.
+
+**Open:** Jon chose 120-day window to catch slower-burn projects; 90-day alternative discussed. Collapsed by default recommended.
