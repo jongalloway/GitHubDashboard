@@ -112,6 +112,17 @@ All four lanes reachable in unit tests: Blocked (CI + security), Needs Attention
 
 **Fix belongs in data pipeline** (`github-client.js`), not UI. Filed issue #47 (Fenster: implement `workflow_status` + `security_alerts` fetching in authenticated path).
 
+### D029: PR #48 Phase 1 Review Fixes — Code Quality Polish (McManus, 2026-06-27)
+**PR:** #48 | **Status:** APPROVED / MERGED
+
+Three refinements applied to Phase 1 Kanban strip (code-review comments post-approval; no correctness issues):
+
+1. **Reuse `closed` set in `renderRepos()`:** Cache `const closed = getClosedRepos()` once, reuse for Kanban filter instead of re-parsing localStorage on every render.
+2. **Single source of truth for Top Pick URL:** Consume `topPick.url` from `_findTopPick()` result in render, eliminate duplicate URL string literal.
+3. **Export `_isDependabotPR` and `_findTopPick`:** Added to `GHD.KanbanStrip` exports for testability; 14 new unit tests added (68 → 82 tests passing). Tests explicitly validate `url` return value (ties decision #2).
+
+No behavior changes. Tests: 68 → 82 passing (all green).
+
 ## Proposals / Under Discussion
 
 ### P001: "What Should I Work On Next?" — Vibe-Coding Kanban Lanes (Keyser, 2026-06-27)
