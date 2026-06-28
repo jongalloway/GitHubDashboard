@@ -108,6 +108,21 @@ window.GHD = window.GHD || {};
   }
 
   /**
+   * Returns a safe web URL for a repo chip. Prefers html_url; falls back to a
+   * URL built from full_name; clamps anything that is not http(s) to '#'.
+   * Never uses repo.url (API endpoint).
+   *
+   * @param {Object} repo
+   * @returns {string}
+   */
+  function _safeRepoUrl(repo) {
+    const raw = repo.html_url
+      || (repo.full_name ? `https://github.com/${_escapeHtml(repo.full_name)}` : null)
+      || '#';
+    return /^https?:\/\//i.test(raw) ? raw : '#';
+  }
+
+  /**
    * Render the Backlog strip into #backlog-strip-region.
    * Starts collapsed. Must be called after cards are in the DOM.
    *
@@ -115,6 +130,10 @@ window.GHD = window.GHD || {};
    * @param {number} [now]        - epoch ms (defaults to Date.now())
    */
   function renderBacklogStrip(backlogRepos, now) {
+    // Reset expand state on every render so the strip always starts collapsed,
+    // even if a previous render left _isExpanded = true.
+    _isExpanded = false;
+
     const region = document.getElementById('backlog-strip-region');
     if (!region) return;
 
@@ -158,9 +177,7 @@ window.GHD = window.GHD || {};
     for (const repo of backlogRepos) {
       const pushedAt = repo.pushed_at || repo.last_commit_date || null;
       const age      = _formatBacklogAge(pushedAt, ts);
-      const url      = repo.html_url
-        || repo.url
-        || `https://github.com/${_escapeHtml(repo.full_name || repo.name)}`;
+      const url      = _safeRepoUrl(repo);
       const label    = repo.full_name || repo.name;
 
       const chip     = document.createElement('a');
@@ -184,16 +201,14 @@ window.GHD = window.GHD || {};
     region.appendChild(toggle);
     region.appendChild(body);
     region.hidden = false;
-
-    // Always start collapsed on re-render
-    _isExpanded = false;
   }
 
   GHD.BacklogStrip = {
     isBacklogRepo,
     deriveBacklogRepos,
     renderBacklogStrip,
-    _formatBacklogAge
+    _formatBacklogAge,
+    _safeRepoUrl
   };
 
 })(window.GHD);

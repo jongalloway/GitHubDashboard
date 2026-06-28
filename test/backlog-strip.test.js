@@ -325,6 +325,50 @@ describe('BacklogStrip — renderRepos integration contract (app.js pattern)', (
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// _safeRepoUrl
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('BacklogStrip._safeRepoUrl', () => {
+  let safeRepoUrl;
+
+  beforeEach(() => {
+    globalThis.window = { GHD: {} };
+    loadBrowserScript('js/backlog-strip.js');
+    safeRepoUrl = window.GHD.BacklogStrip._safeRepoUrl;
+  });
+
+  it('returns html_url when present and is https', () => {
+    expect(safeRepoUrl({ html_url: 'https://github.com/owner/repo', full_name: 'owner/repo' }))
+      .toBe('https://github.com/owner/repo');
+  });
+
+  it('returns html_url when it is http (also valid)', () => {
+    expect(safeRepoUrl({ html_url: 'http://github.com/owner/repo' }))
+      .toBe('http://github.com/owner/repo');
+  });
+
+  it('builds url from full_name when html_url is absent', () => {
+    expect(safeRepoUrl({ full_name: 'owner/repo' }))
+      .toBe('https://github.com/owner/repo');
+  });
+
+  it('returns "#" when html_url and full_name are both absent', () => {
+    expect(safeRepoUrl({ name: 'repo' })).toBe('#');
+  });
+
+  it('clamps non-http(s) html_url to "#" (e.g. javascript: URI)', () => {
+    expect(safeRepoUrl({ html_url: 'javascript:alert(1)', full_name: 'owner/repo' })).toBe('#');
+  });
+
+  it('does NOT fall back to repo.url — uses full_name instead', () => {
+    const repo = { url: 'https://api.github.com/repos/owner/repo', full_name: 'owner/repo' };
+    const result = safeRepoUrl(repo);
+    expect(result).toBe('https://github.com/owner/repo');
+    expect(result).not.toContain('api.github.com');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // _formatBacklogAge
 // ─────────────────────────────────────────────────────────────────────────────
 
