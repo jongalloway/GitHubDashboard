@@ -465,6 +465,35 @@ h3 {
   fill: var(--meter-critical);
 }
 
+/* ── Release Pressure Indicator ─────────────────────────────────────────── */
+.release-pressure {
+  display: block;
+  margin-top: 0.15rem;
+  max-width: 22rem;
+}
+
+.release-pressure-svg {
+  display: block;
+  width: 100%;
+  height: 0.45rem;
+}
+
+.release-pressure-track {
+  fill: var(--meter-track);
+}
+
+.release-pressure-fill.tone-good {
+  fill: var(--meter-good);
+}
+
+.release-pressure-fill.tone-warning {
+  fill: var(--meter-warning);
+}
+
+.release-pressure-fill.tone-critical {
+  fill: var(--meter-critical);
+}
+
 .repo-card.status-needs-attention {
   border-color: rgba(249, 115, 22, 0.38);
 }
