@@ -789,9 +789,21 @@
 
     const pinned = getPinnedRepos();
     const closed = getClosedRepos();
+    const now    = Date.now();
 
-    const pinnedRepos = _currentRepos.filter(r => pinned.has(r.name) && !closed.has(r.name));
-    const normalRepos = _currentRepos.filter(r => !pinned.has(r.name) && !closed.has(r.name));
+    // Compute backlog set — these repos are pulled out of the main card grid
+    const BacklogStrip = window.GHD && window.GHD.BacklogStrip;
+    const backlogSet   = new Set();
+    if (BacklogStrip && BacklogStrip.isBacklogRepo) {
+      for (const r of _currentRepos) {
+        if (!closed.has(r.name) && BacklogStrip.isBacklogRepo(r, now)) {
+          backlogSet.add(r.name);
+        }
+      }
+    }
+
+    const pinnedRepos = _currentRepos.filter(r => pinned.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
+    const normalRepos = _currentRepos.filter(r => !pinned.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
     const closedRepos = _currentRepos.filter(r => closed.has(r.name));
 
     [...pinnedRepos, ...normalRepos].forEach(repo => {
@@ -807,9 +819,16 @@
     renderHeaderSparkline(_currentRepos);
 
     // Kanban strip — must run after cards are in the DOM
+    // Backlog repos are excluded so the Healthy lane count is accurate
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
-      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !closed.has(r.name)));
+      KanbanStrip.renderKanbanStrip(_currentRepos.filter(r => !closed.has(r.name) && !backlogSet.has(r.name)));
+    }
+
+    // Backlog strip — collapsible "pick back up" strip below the Kanban board
+    if (BacklogStrip && BacklogStrip.renderBacklogStrip) {
+      const backlogRepos = _currentRepos.filter(r => backlogSet.has(r.name));
+      BacklogStrip.renderBacklogStrip(backlogRepos, now);
     }
   }
 
