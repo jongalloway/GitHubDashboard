@@ -57,3 +57,9 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - When merging PRs that touch the same branch-level history docs, git can auto-merge them cleanly (no conflict) — only `fetch-data.js` and `app.js` reliably conflict.
 - `github-client.js` (browser client) and `scripts/fetch-data.js` (server pipeline) must stay in structural parity: after merging new fields server-side, immediately add matching stubs client-side.
 - All 9 PRs (#18–#26) merged into main in order. PRs auto-closed on GitHub upon merge.
+
+## Learnings (2026-06-27 — Vibe-Coding Kanban Proposal)
+
+- Drafted a "What should I work on next?" proposal: auto-derived Kanban lanes (Blocked → Needs Review → Working → Release Ready → Up-to-Date) from existing dashboard signals, priority scoring heuristic for 30-min work slots, and phased rollout. Discussion only, no code. Proposal at `.squad/decisions/inbox/keyser-vibe-kanban-proposal.md`.
+- Key insight: zero new API calls needed — all lane logic derivable from data already fetched (workflow_status, security_alerts, pending_reviews, pushed_at, release_overdue).
+- Integrated a "Backlog (3-month stale)" concept into the vibe-coding Kanban proposal: repos pushed >14d and ≤90d ago render as a separate strip below the 4-lane board, pulled out of Healthy. Discussion/proposal only — no code. See `.squad/decisions/inbox/keyser-vibe-backlog.md`.
