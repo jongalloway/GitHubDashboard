@@ -118,6 +118,33 @@ window.GHD = window.GHD || {};
     return items;
   }
 
+  // Returns null on ANY non-OK response (403, 404, missing scope, etc.) — never throws.
+  async function _fetchJsonSoft(url, token) {
+    try {
+      const response = await fetch(url, { headers: _headers(token) });
+      if (!response.ok) return null;
+      return response.json();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Paginates gracefully — stops and returns what was collected on any error; never throws.
+  async function _paginateSoft(url, token) {
+    const items = [];
+    try {
+      let nextUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+      while (nextUrl) {
+        const response = await fetch(nextUrl, { headers: _headers(token) });
+        if (!response.ok) return items;
+        const page = await response.json();
+        if (Array.isArray(page)) items.push(...page);
+        nextUrl = _getNextLink(response.headers.get('link'));
+      }
+    } catch (_) { /* swallow */ }
+    return items;
+  }
+
   // ── Concurrency limiter ──────────────────────────────────
 
   async function _runWithConcurrency(tasks, limit) {
@@ -244,6 +271,68 @@ window.GHD = window.GHD || {};
       .map(({ score, ...issue }) => issue);
   }
 
+  // ── Blocked-lane data parsers (pure — exported for tests) ─
+
+  /**
+   * Parse a /actions/runs response into the workflow_status shape.
+   * Empty or null runs → has_workflows: false so the Blocked lane stays clear.
+   */
+  function _parseWorkflowRun(data) {
+    if (!data || !Array.isArray(data.workflow_runs) || data.workflow_runs.length === 0) {
+      return { has_workflows: false, latest_run: null };
+    }
+    const run = data.workflow_runs[0];
+    return {
+      has_workflows: true,
+      latest_run: {
+        conclusion: run.conclusion || null,
+        status: run.status || null,
+        html_url: run.html_url || null,
+        name: run.name || null,
+        run_started_at: run.run_started_at || null
+      }
+    };
+  }
+
+  /**
+   * Count open Dependabot alerts by severity.
+   * Accepts null/non-array → all-zero safe default.
+   */
+  function _parseSecurityAlerts(alerts) {
+    if (!Array.isArray(alerts)) return { total: 0, critical: 0, high: 0, medium: 0, low: 0 };
+    const counts = { total: alerts.length, critical: 0, high: 0, medium: 0, low: 0 };
+    for (const alert of alerts) {
+      const sev = (
+        alert.security_advisory?.severity ||
+        alert.security_vulnerability?.severity ||
+        ''
+      ).toLowerCase();
+      if (sev === 'critical') counts.critical++;
+      else if (sev === 'high') counts.high++;
+      else if (sev === 'medium') counts.medium++;
+      else if (sev === 'low') counts.low++;
+    }
+    return counts;
+  }
+
+  // ── Blocked-lane data fetchers ────────────────────────────
+
+  async function _fetchWorkflowStatus(fullName, token) {
+    const data = await _fetchJsonSoft(
+      `${API_BASE}/repos/${fullName}/actions/runs?per_page=1`,
+      token
+    );
+    return _parseWorkflowRun(data);
+  }
+
+  async function _fetchDependabotAlerts(fullName, token) {
+    const alerts = await _paginateSoft(
+      `${API_BASE}/repos/${fullName}/dependabot/alerts?state=open&per_page=100`,
+      token
+    );
+    return _parseSecurityAlerts(alerts);
+  }
+
   function _summarizeNextSteps({
     releaseOverdue,
     pendingReviewCount,
@@ -281,7 +370,7 @@ window.GHD = window.GHD || {};
     const defaultBranch = repo.default_branch || 'main';
 
     try {
-      const [issuesAndPrs, pulls, branches, squadTeamFile] = await Promise.all([
+      const [issuesAndPrs, pulls, branches, squadTeamFile, workflowStatus, securityAlerts] = await Promise.all([
         _paginate(
           `${API_BASE}/repos/${fullName}/issues?state=open&per_page=100&sort=updated&direction=desc`,
           token
@@ -291,7 +380,9 @@ window.GHD = window.GHD || {};
           token
         ),
         _paginate(`${API_BASE}/repos/${fullName}/branches?per_page=100`, token),
-        _fetchJson(`${API_BASE}/repos/${fullName}/contents/.squad/team.md`, token)
+        _fetchJson(`${API_BASE}/repos/${fullName}/contents/.squad/team.md`, token),
+        _fetchWorkflowStatus(fullName, token),
+        _fetchDependabotAlerts(fullName, token)
       ]);
 
       // Last commit date on default branch
@@ -508,8 +599,8 @@ window.GHD = window.GHD || {};
         },
         non_default_branch_count: branches.filter((b) => b.name !== repo.default_branch).length,
         is_private: repo.private === true,
-        workflow_status: { has_workflows: false, latest_run: null },
-        security_alerts: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        workflow_status: workflowStatus,
+        security_alerts: securityAlerts,
         code_scanning: { total: 0, critical: 0, high: 0, medium: 0, low: 0, warning: 0, note: 0, error: 0 },
         traffic: null,
         discussions_enabled: repo.has_discussions === true,
@@ -972,6 +1063,9 @@ window.GHD = window.GHD || {};
 
   GHD.GitHubClient = {
     fetchPrivateDashboard,
-    fetchPublicDashboard
+    fetchPublicDashboard,
+    // Pure helpers exported for unit testing
+    _parseWorkflowRun,
+    _parseSecurityAlerts
   };
 }(window.GHD));
