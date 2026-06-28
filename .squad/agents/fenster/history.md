@@ -70,3 +70,7 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Standardized CI trigger paths to the canonical Vitest test directory `test/**` and removed duplicate watcher coverage for `tests/**`.
 - Standardized test config trigger coverage to `vitest.config.js` only, matching repository configuration.
 - Switched CI execution from `npm test --if-present` to `npm test` now that the canonical test script exists in `package.json`, making failures visible instead of silently skipping test execution.
+
+## Learnings (2026-06-27 PAT Scopes Documentation)
+
+- Added "### PAT Scopes" subsection to README.md right after Quick Setup to document scope requirements for Blocked lane security alerts (`security_events` scope) and core features (`repo` scope), emphasizing graceful degradation when scopes are absent.
