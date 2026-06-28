@@ -20,6 +20,17 @@ This project is designed to be forked. All data is fetched directly in the brows
 
 That's it. The dashboard fetches your data client-side — nothing is stored on the server.
 
+### PAT Scopes
+
+The dashboard works with a basic read-only Personal Access Token. Here's what each feature requires:
+
+- **Core features** (releases, PRs, issues, Copilot activity) — `repo` scope (or `public_repo` for public repos only)
+- **Blocked lane (security alerts)** — add `security_events` scope to enable Dependabot alerts; also requires **admin access** for private repositories
+- **Workflow status** — included with `repo` scope
+- **Graceful degradation** — if a scope is missing, those signals simply stay empty in the dashboard (no errors)
+
+If unsure, start with `repo` + `security_events` — your token stays secure in your browser.
+
 ### Local Development
 
 ```bash
