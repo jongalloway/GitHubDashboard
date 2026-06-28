@@ -114,6 +114,34 @@ describe('GHD.GitHubClient — blocked lane data (#47)', () => {
         latest_run: null
       });
     });
+
+    // Gap 3: non-blocking conclusions
+    test('cancelled run → has_workflows true, conclusion "cancelled" (non-blocking)', () => {
+      const data = { workflow_runs: [{ conclusion: 'cancelled', status: 'completed', html_url: null, name: null, run_started_at: null }] };
+      const result = window.GHD.GitHubClient._parseWorkflowRun(data);
+      expect(result.has_workflows).toBe(true);
+      expect(result.latest_run.conclusion).toBe('cancelled');
+      const isBlocking = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(result.latest_run.conclusion);
+      expect(isBlocking).toBe(false);
+    });
+
+    test('neutral run → has_workflows true, conclusion "neutral" (non-blocking)', () => {
+      const data = { workflow_runs: [{ conclusion: 'neutral', status: 'completed', html_url: null, name: null, run_started_at: null }] };
+      const result = window.GHD.GitHubClient._parseWorkflowRun(data);
+      expect(result.has_workflows).toBe(true);
+      expect(result.latest_run.conclusion).toBe('neutral');
+      const isBlocking = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(result.latest_run.conclusion);
+      expect(isBlocking).toBe(false);
+    });
+
+    test('skipped run → has_workflows true, conclusion "skipped" (non-blocking)', () => {
+      const data = { workflow_runs: [{ conclusion: 'skipped', status: 'completed', html_url: null, name: null, run_started_at: null }] };
+      const result = window.GHD.GitHubClient._parseWorkflowRun(data);
+      expect(result.has_workflows).toBe(true);
+      expect(result.latest_run.conclusion).toBe('skipped');
+      const isBlocking = ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(result.latest_run.conclusion);
+      expect(isBlocking).toBe(false);
+    });
   });
 
   // ── _parseSecurityAlerts ──────────────────────────────────
@@ -327,6 +355,295 @@ describe('GHD.GitHubClient — blocked lane data (#47)', () => {
       const repo = payload.dashboard.repos[0];
       expect(repo.workflow_status.latest_run.conclusion).toBe('timed_out');
       expect(repo.security_alerts.total).toBe(1);
+    });
+  });
+
+  // ── Gap 1: Multi-repo isolation (_runWithConcurrency + filter(Boolean)) ──
+
+  describe('multi-repo isolation: _runWithConcurrency + filter(Boolean)', () => {
+    const makeRepo = (name) => ({
+      name,
+      full_name: `octocat/${name}`,
+      html_url: `https://github.com/octocat/${name}`,
+      visibility: 'public',
+      description: null,
+      language: 'JavaScript',
+      updated_at: '2026-06-27T00:00:00Z',
+      pushed_at: '2026-06-27T00:00:00Z',
+      default_branch: 'main',
+      private: false,
+      fork: false,
+      archived: false,
+      topics: [],
+      has_discussions: false
+    });
+
+    const repoA = makeRepo('repo-a');
+    const repoB = makeRepo('repo-b');
+    const repoC = makeRepo('repo-c');
+
+    function makeMultiFetch(handlers = {}) {
+      return vi.fn(async (url) => {
+        const value = String(url);
+        for (const [pattern, handler] of Object.entries(handlers)) {
+          if (value.includes(pattern)) return handler;
+        }
+        if (value.includes('/user/repos?')) return jsonResponse([repoA, repoB, repoC]);
+        if (value.includes('/issues?')) return jsonResponse([]);
+        if (value.includes('/pulls?')) return jsonResponse([]);
+        if (value.includes('/branches?')) return jsonResponse([]);
+        if (value.includes('/contents/.squad/team.md')) return jsonResponse({}, 404);
+        if (value.includes('/commits/')) return jsonResponse({ commit: { committer: { date: '2026-06-27T00:00:00Z' } } });
+        if (value.includes('/releases/latest')) return jsonResponse({}, 404);
+        if (value.includes('/pages')) return jsonResponse({}, 404);
+        if (value.includes('/actions/runs?')) return jsonResponse({ workflow_runs: [] });
+        if (value.includes('/dependabot/alerts?')) return jsonResponse([]);
+        return jsonResponse({});
+      });
+    }
+
+    test('one repo 403 on actions/runs → that repo workflow_status zeroed, other repos populated, all 3 present, no rejection', async () => {
+      vi.stubGlobal('fetch', makeMultiFetch({
+        'repo-a/actions/runs?': jsonResponse({
+          workflow_runs: [{ conclusion: 'failure', status: 'completed', html_url: null, name: null, run_started_at: null }]
+        }),
+        'repo-b/actions/runs?': new Response('{"message":"Forbidden"}', { status: 403 })
+      }));
+
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      expect(payload.dashboard.repos).toHaveLength(3);
+
+      const a = payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-a');
+      const b = payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-b');
+      const c = payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-c');
+
+      // repo-a: failing CI populated correctly
+      expect(a.workflow_status.has_workflows).toBe(true);
+      expect(a.workflow_status.latest_run.conclusion).toBe('failure');
+
+      // repo-b: 403 → soft degradation to zeroed fields
+      expect(b.workflow_status.has_workflows).toBe(false);
+      expect(b.workflow_status.latest_run).toBeNull();
+
+      // repo-c: unaffected by repo-b's failure
+      expect(c.workflow_status.has_workflows).toBe(false);
+      expect(c).toBeDefined();
+    });
+
+    test('one repo network throw on hard fetch → _fetchRepoDetails fallback fires, repo present with zeroed blocked-lane fields, remaining repos intact', async () => {
+      const fetchFn = vi.fn(async (url) => {
+        const value = String(url);
+        // Throw inside _paginate for repo-b (hard fetch, not soft)
+        if (value.includes('repo-b/issues?')) throw new TypeError('Network failure');
+        if (value.includes('/user/repos?')) return jsonResponse([repoA, repoB, repoC]);
+        if (value.includes('/issues?')) return jsonResponse([]);
+        if (value.includes('/pulls?')) return jsonResponse([]);
+        if (value.includes('/branches?')) return jsonResponse([]);
+        if (value.includes('/contents/.squad/team.md')) return jsonResponse({}, 404);
+        if (value.includes('/commits/')) return jsonResponse({ commit: { committer: { date: '2026-06-27T00:00:00Z' } } });
+        if (value.includes('/releases/latest')) return jsonResponse({}, 404);
+        if (value.includes('/pages')) return jsonResponse({}, 404);
+        if (value.includes('/actions/runs?')) return jsonResponse({ workflow_runs: [] });
+        if (value.includes('/dependabot/alerts?')) return jsonResponse([]);
+        return jsonResponse({});
+      });
+      vi.stubGlobal('fetch', fetchFn);
+
+      // Must not reject — _fetchRepoDetails outer catch returns a fallback object
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+
+      // All 3 repos present: fallback record is truthy, filter(Boolean) keeps it
+      expect(payload.dashboard.repos).toHaveLength(3);
+
+      const b = payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-b');
+      expect(b).toBeDefined();
+      // Fallback zeroes blocked-lane fields
+      expect(b.workflow_status).toEqual({ has_workflows: false, latest_run: null });
+      expect(b.security_alerts).toEqual({ total: 0, critical: 0, high: 0, medium: 0, low: 0 });
+      expect(b.open_issues_count).toBe(0);
+
+      // repo-a and repo-c unaffected
+      expect(payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-a')).toBeDefined();
+      expect(payload.dashboard.repos.find((r) => r.full_name === 'octocat/repo-c')).toBeDefined();
+    });
+  });
+
+  // ── Gap 2: Network-exception branch (_fetchJsonSoft / _paginateSoft throw) ──
+
+  describe('network-exception branch: fetch throws → catch(_) returns null / []', () => {
+    const throwBaseRepo = {
+      name: 'my-repo',
+      full_name: 'octocat/my-repo',
+      html_url: 'https://github.com/octocat/my-repo',
+      visibility: 'public',
+      description: null,
+      language: 'JavaScript',
+      updated_at: '2026-06-27T00:00:00Z',
+      pushed_at: '2026-06-27T00:00:00Z',
+      default_branch: 'main',
+      private: false,
+      fork: false,
+      archived: false,
+      topics: [],
+      has_discussions: false
+    };
+
+    function makeThrowFetch(throwPattern) {
+      return vi.fn(async (url) => {
+        const value = String(url);
+        if (value.includes(throwPattern)) throw new TypeError('Failed to fetch');
+        if (value.includes('/user/repos?')) return jsonResponse([throwBaseRepo]);
+        if (value.includes('/issues?')) return jsonResponse([]);
+        if (value.includes('/pulls?')) return jsonResponse([]);
+        if (value.includes('/branches?')) return jsonResponse([]);
+        if (value.includes('/contents/.squad/team.md')) return jsonResponse({}, 404);
+        if (value.includes('/commits/')) return jsonResponse({ commit: { committer: { date: '2026-06-27T00:00:00Z' } } });
+        if (value.includes('/releases/latest')) return jsonResponse({}, 404);
+        if (value.includes('/pages')) return jsonResponse({}, 404);
+        if (value.includes('/actions/runs?')) return jsonResponse({ workflow_runs: [] });
+        if (value.includes('/dependabot/alerts?')) return jsonResponse([]);
+        return jsonResponse({});
+      });
+    }
+
+    test('fetch throws (TypeError) on actions/runs → _fetchJsonSoft catch branch → workflow_status zeroed, no throw', async () => {
+      vi.stubGlobal('fetch', makeThrowFetch('/actions/runs?'));
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      const repo = payload.dashboard.repos[0];
+      expect(repo.workflow_status.has_workflows).toBe(false);
+      expect(repo.workflow_status.latest_run).toBeNull();
+    });
+
+    test('fetch throws (TypeError) on dependabot/alerts first page → _paginateSoft catch branch → security_alerts all-zero, no throw', async () => {
+      vi.stubGlobal('fetch', makeThrowFetch('/dependabot/alerts?'));
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      const repo = payload.dashboard.repos[0];
+      expect(repo.security_alerts).toEqual({ total: 0, critical: 0, high: 0, medium: 0, low: 0 });
+    });
+
+    test('AbortError thrown on actions/runs → _fetchJsonSoft catch branch handles non-TypeError → workflow_status zeroed, no throw', async () => {
+      const abortFetch = vi.fn(async (url) => {
+        const value = String(url);
+        if (value.includes('/actions/runs?')) {
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          throw err;
+        }
+        if (value.includes('/user/repos?')) return jsonResponse([throwBaseRepo]);
+        if (value.includes('/issues?')) return jsonResponse([]);
+        if (value.includes('/pulls?')) return jsonResponse([]);
+        if (value.includes('/branches?')) return jsonResponse([]);
+        if (value.includes('/contents/.squad/team.md')) return jsonResponse({}, 404);
+        if (value.includes('/commits/')) return jsonResponse({ commit: { committer: { date: '2026-06-27T00:00:00Z' } } });
+        if (value.includes('/releases/latest')) return jsonResponse({}, 404);
+        if (value.includes('/pages')) return jsonResponse({}, 404);
+        if (value.includes('/dependabot/alerts?')) return jsonResponse([]);
+        return jsonResponse({});
+      });
+      vi.stubGlobal('fetch', abortFetch);
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      expect(payload.dashboard.repos[0].workflow_status.has_workflows).toBe(false);
+      expect(payload.dashboard.repos[0].workflow_status.latest_run).toBeNull();
+    });
+  });
+
+  // ── Gap 4: _paginateSoft pagination ─────────────────────
+
+  describe('_paginateSoft: multi-page accumulation and mid-pagination error', () => {
+    const PAGE2_URL =
+      'https://api.github.com/repos/octocat/my-repo/dependabot/alerts?state=open&per_page=100&page=2';
+
+    const pagBaseRepo = {
+      name: 'my-repo',
+      full_name: 'octocat/my-repo',
+      html_url: 'https://github.com/octocat/my-repo',
+      visibility: 'public',
+      description: null,
+      language: 'JavaScript',
+      updated_at: '2026-06-27T00:00:00Z',
+      pushed_at: '2026-06-27T00:00:00Z',
+      default_branch: 'main',
+      private: false,
+      fork: false,
+      archived: false,
+      topics: [],
+      has_discussions: false
+    };
+
+    function makePagFetch(page1Handler, page2Handler) {
+      return vi.fn(async (url) => {
+        const value = String(url);
+        if (value.includes('/user/repos?')) return jsonResponse([pagBaseRepo]);
+        if (value.includes('/issues?')) return jsonResponse([]);
+        if (value.includes('/pulls?')) return jsonResponse([]);
+        if (value.includes('/branches?')) return jsonResponse([]);
+        if (value.includes('/contents/.squad/team.md')) return jsonResponse({}, 404);
+        if (value.includes('/commits/')) return jsonResponse({ commit: { committer: { date: '2026-06-27T00:00:00Z' } } });
+        if (value.includes('/releases/latest')) return jsonResponse({}, 404);
+        if (value.includes('/pages')) return jsonResponse({}, 404);
+        if (value.includes('/actions/runs?')) return jsonResponse({ workflow_runs: [] });
+        // page=2 check must come before the generic alerts check
+        if (value.includes('page=2') && value.includes('/dependabot/alerts')) return page2Handler(url);
+        if (value.includes('/dependabot/alerts?')) return page1Handler(url);
+        return jsonResponse({});
+      });
+    }
+
+    test('two-page pagination via Link header accumulates items from both pages', async () => {
+      const page1 = [{ security_advisory: { severity: 'critical' } }];
+      const page2 = [
+        { security_advisory: { severity: 'high' } },
+        { security_advisory: { severity: 'medium' } }
+      ];
+
+      vi.stubGlobal('fetch', makePagFetch(
+        () => new Response(JSON.stringify(page1), {
+          status: 200,
+          headers: { 'content-type': 'application/json', link: `<${PAGE2_URL}>; rel="next"` }
+        }),
+        () => jsonResponse(page2)
+      ));
+
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      const repo = payload.dashboard.repos[0];
+      expect(repo.security_alerts.total).toBe(3);
+      expect(repo.security_alerts.critical).toBe(1);
+      expect(repo.security_alerts.high).toBe(1);
+      expect(repo.security_alerts.medium).toBe(1);
+    });
+
+    test('mid-pagination 403 → stops cleanly, returns items from page 1 only, no throw', async () => {
+      const page1 = [{ security_advisory: { severity: 'high' } }];
+
+      vi.stubGlobal('fetch', makePagFetch(
+        () => new Response(JSON.stringify(page1), {
+          status: 200,
+          headers: { 'content-type': 'application/json', link: `<${PAGE2_URL}>; rel="next"` }
+        }),
+        () => new Response('{"message":"Forbidden"}', { status: 403 })
+      ));
+
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      const repo = payload.dashboard.repos[0];
+      expect(repo.security_alerts.total).toBe(1);
+      expect(repo.security_alerts.high).toBe(1);
+    });
+
+    test('mid-pagination network throw → catch branch swallows it, returns page 1 items, no throw', async () => {
+      const page1 = [{ security_advisory: { severity: 'critical' } }];
+
+      vi.stubGlobal('fetch', makePagFetch(
+        () => new Response(JSON.stringify(page1), {
+          status: 200,
+          headers: { 'content-type': 'application/json', link: `<${PAGE2_URL}>; rel="next"` }
+        }),
+        () => { throw new TypeError('Network error on page 2'); }
+      ));
+
+      const payload = await window.GHD.GitHubClient.fetchPrivateDashboard('tok', 'octocat');
+      const repo = payload.dashboard.repos[0];
+      expect(repo.security_alerts.total).toBe(1);
+      expect(repo.security_alerts.critical).toBe(1);
     });
   });
 });
