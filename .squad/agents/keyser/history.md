@@ -96,3 +96,12 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Pin (#62) and archive (#63) are distinct UX features (sticky-to-top vs hide-entirely) despite both using localStorage. Splitting keeps acceptance criteria clean and allows parallel implementation.
 - Added `squad:keyser` label to #64 (Dependabot deep-links) for architecture review of the security constraint and deep-link approach. Consistent with Phase 2 pattern of self-labeling on design-sensitive issues.
 - Decision drop: `.squad/decisions/inbox/keyser-phase3-breakdown.md` (D041).
+
+## Learnings (2026-06-28 — PR #66 gap-fill, issues #62 / #64)
+
+- **Branch/merge gap pattern:** PR #66 (#62 pin) merged `js/pinned.js`, `test/pinned.test.js`, `css/style.css`, and `index.html` body changes to main, but `feat/64-dependabot-links` was NOT merged. As a result: (1) `js/dependabot-links.js` was missing entirely from main → 404 when kanban-strip tries to use it; (2) `<script src="js/dependabot-links.js" defer>` was absent from `index.html` → dead feature.
+- **Resolution approach — selective checkout over cherry-pick:** `git cherry-pick` of `3dca0cf` would have conflicted (it re-added the `pinned.js` script tag already merged by PR #66). Instead used `git checkout feat/64-dependabot-links -- <files>` to grab exactly the new/modified files (`js/dependabot-links.js`, `test/dependabot-links.test.js`, `js/kanban-strip.js`, `css/style.css`, `README.md`) and manually edited `index.html` to add only the missing script tag. Single clean commit on main, no conflict.
+- **Commit message accuracy trap:** The `3dca0cf` commit message claimed "Add js/dependabot-links.js script to index.html" but the actual diff showed it added `js/pinned.js` script tag, not `dependabot-links.js`. Always verify commit diffs, not just messages.
+- **Stale PR hygiene:** After landing #64 content directly on main, closed PR #65 (`feat/64-dependabot-links`) with `gh pr close 65 --delete-branch`. Keeping a feature PR open after its content ships separately causes confusion. Close stale PRs immediately.
+- **Test file sanity check:** When `npx vitest run` showed 16 test files (not 17) and 322 tests (not 348), it correctly signaled that `test/dependabot-links.test.js` was missing — test count is a reliable gap detector even when CI passes (missing module = missing test file = lower count).
+- **Final state:** 17 test files, 348 tests + 3 skipped, all pass. `js/dependabot-links.js`, `test/dependabot-links.test.js`, and script tag all on main. PR #65 closed, branch deleted.
