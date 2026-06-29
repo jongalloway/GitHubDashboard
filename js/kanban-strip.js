@@ -64,7 +64,8 @@ window.GHD = window.GHD || {};
   }
 
   // Find the best Top Pick action across all repos.
-  // Phase 1: read-only Dependabot deep-link only.
+  // Phase 1: read-only Dependabot deep-link.
+  // Phase 3 (issue #64): uses GHD.DependabotLinks for per-PR specific links + grouping.
   function _findTopPick(repos) {
     const reposWithDepBot = [];
     for (const repo of repos) {
@@ -74,10 +75,28 @@ window.GHD = window.GHD || {};
     }
     if (reposWithDepBot.length === 0) return null;
     reposWithDepBot.sort((a, b) => b.count - a.count);
+
+    // Enrich with per-PR links when DependabotLinks module is available (issue #64).
+    // Falls back to generic search URL for backward compat when module is absent.
+    const DependabotLinks =
+      (typeof window !== 'undefined' ? window : globalThis).GHD?.DependabotLinks;
+    if (DependabotLinks) {
+      const pick = DependabotLinks.findTopPickPR(repos, _isDependabotPR);
+      if (pick) {
+        return {
+          type: 'dependabot',
+          repos: reposWithDepBot,
+          url: pick.topPRUrl,
+          groups: pick.groups,
+          totalCount: pick.totalCount
+        };
+      }
+    }
+
     return {
       type: 'dependabot',
       repos: reposWithDepBot,
-      // Cross-repo filtered view — safe read-only deep-link (Phase 1)
+      // Cross-repo filtered view — safe read-only deep-link (fallback)
       url: 'https://github.com/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot'
     };
   }
@@ -132,8 +151,45 @@ window.GHD = window.GHD || {};
     bar.setAttribute('aria-label', 'Top Pick — suggested next action');
 
     if (topPick.type === 'dependabot') {
-      const total = topPick.repos.reduce((sum, r) => sum + r.count, 0);
+      const total     = topPick.totalCount != null
+        ? topPick.totalCount
+        : topPick.repos.reduce((sum, r) => sum + r.count, 0);
       const repoCount = topPick.repos.length;
+      const topUrl    = _escapeHtml(topPick.url);
+
+      // Build per-repo expandable group list when DependabotLinks data is present.
+      let groupsHtml = '';
+      if (Array.isArray(topPick.groups) && topPick.groups.length > 0) {
+        const items = topPick.groups.map((g) => {
+          const repoLabel = _escapeHtml(g.repo.full_name || g.repo.name || 'repo');
+          if (g.prs.length === 1) {
+            const pr      = g.prs[0];
+            const prTitle = _escapeHtml(pr.title || `PR #${pr.number}`);
+            return `<li class="depbot-repo-group">
+              <a class="depbot-pr-link"
+                 href="${_escapeHtml(pr.prUrl)}"
+                 target="_blank" rel="noopener noreferrer"
+                 aria-label="Open ${prTitle} in GitHub (opens in new tab)">
+                <span class="depbot-repo-name">${repoLabel}</span> — ${prTitle} →
+              </a>
+            </li>`;
+          }
+          const prLinks = g.prs.map((pr) => {
+            const t = _escapeHtml(pr.title || `PR #${pr.number}`);
+            return `<li><a class="depbot-pr-link"
+                           href="${_escapeHtml(pr.prUrl)}"
+                           target="_blank" rel="noopener noreferrer">${t} →</a></li>`;
+          }).join('');
+          return `<li class="depbot-repo-group">
+            <details class="depbot-group-details">
+              <summary>${repoLabel} — ${g.prs.length} Dependabot PRs — merge on GitHub</summary>
+              <ul class="depbot-pr-list">${prLinks}</ul>
+            </details>
+          </li>`;
+        }).join('');
+        groupsHtml = `<ul class="depbot-groups-list">${items}</ul>`;
+      }
+
       bar.innerHTML = `
         <span class="top-pick-label" aria-hidden="true">⚡ Top Pick</span>
         <span class="top-pick-action">
@@ -141,12 +197,13 @@ window.GHD = window.GHD || {};
           across ${repoCount} repo${repoCount === 1 ? '' : 's'} — quick security wins
         </span>
         <a class="top-pick-link"
-           href="${topPick.url}"
+           href="${topUrl}"
            target="_blank"
            rel="noopener noreferrer"
-           aria-label="Open Dependabot PRs in GitHub (opens in new tab)">
+           aria-label="Open highest-priority Dependabot PR in GitHub (opens in new tab)">
           Open in GitHub →
         </a>
+        ${groupsHtml}
       `;
     }
 

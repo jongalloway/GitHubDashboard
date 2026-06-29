@@ -2119,3 +2119,88 @@ html[data-theme="light"] .top-pick-link--backlog:hover {
     font-size: 0.74rem;
   }
 }
+
+/* ── Dependabot PR groups in Top Pick bar (issue #64) ───────── */
+
+.depbot-groups-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+}
+
+.depbot-repo-group {
+  width: 100%;
+}
+
+.depbot-pr-link {
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: color 0.12s;
+}
+
+.depbot-pr-link:hover {
+  text-decoration: underline;
+  color: var(--text);
+}
+
+.depbot-repo-name {
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.depbot-group-details > summary {
+  cursor: pointer;
+  color: var(--text-soft);
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  user-select: none;
+}
+
+.depbot-group-details > summary::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform 0.15s;
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.depbot-group-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.depbot-pr-list {
+  list-style: none;
+  margin: 0.3rem 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+html[data-theme="light"] .depbot-repo-name {
+  color: var(--text);
+}
+
+html[data-theme="light"] .depbot-group-details > summary {
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .depbot-groups-list {
+    font-size: 0.8rem;
+  }
+  .depbot-pr-list {
+    margin-left: 0.5rem;
+  }
+}
