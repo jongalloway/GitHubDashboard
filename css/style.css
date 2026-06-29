@@ -1511,6 +1511,65 @@ code {
   opacity: 0.8;
 }
 
+/* ── Pinned Section (issue #62) ──────────────────────────── */
+
+.pinned-region {
+  margin-bottom: 1rem;
+}
+
+.pinned-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.2rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.pinned-section-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.pinned-section-title {
+  font-weight: 600;
+  color: var(--text-soft);
+  flex: 1 1 0;
+}
+
+.pinned-section-count {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.45rem;
+  min-width: 1.5ch;
+  text-align: center;
+}
+
+.pinned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+html[data-theme="light"] .pinned-section-count {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .pinned-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pinned-section-header {
+    padding: 0.3rem 0.1rem 0.45rem;
+  }
+}
+
 /* ── Kanban Strip (issue #43) ────────────────────────────── */
 
 .kanban-strip-region {

@@ -62,17 +62,12 @@
   let _authUIState = 'public';
 
   // ── Pin / Close / Notes / Release-NA / Snooze state ─────
-  const PINNED_KEY = 'ghd-pinned';
   const CLOSED_KEY = 'ghd-closed';
   const NOTES_KEY = 'ghd-notes';
   const NOTES_OPEN_KEY = 'ghd-notes-open';
   const RELEASE_NA_KEY = 'ghd-release-na';
   let _currentRepos = null;
 
-  function getPinnedRepos() {
-    try { return new Set(JSON.parse(localStorage.getItem(PINNED_KEY)) || []); }
-    catch (_) { return new Set(); }
-  }
   function getClosedRepos() {
     try { return new Set(JSON.parse(localStorage.getItem(CLOSED_KEY)) || []); }
     catch (_) { return new Set(); }
@@ -81,7 +76,6 @@
     try { return new Set(JSON.parse(localStorage.getItem(RELEASE_NA_KEY)) || []); }
     catch (_) { return new Set(); }
   }
-  function _savePinned(s) { localStorage.setItem(PINNED_KEY, JSON.stringify([...s])); }
   function _saveClosed(s) { localStorage.setItem(CLOSED_KEY, JSON.stringify([...s])); }
   function _saveReleaseNA(s) { localStorage.setItem(RELEASE_NA_KEY, JSON.stringify([...s])); }
   function isReleaseNA(repo) { return getReleaseNARepos().has(repo.name); }
@@ -113,17 +107,17 @@
   }
 
   function _togglePin(repoName) {
-    const pinned = getPinnedRepos();
-    if (pinned.has(repoName)) { pinned.delete(repoName); } else { pinned.add(repoName); }
-    _savePinned(pinned);
+    const Pinned = window.GHD && window.GHD.Pinned;
+    if (!Pinned) return;
+    if (Pinned.isPinned(repoName)) { Pinned.unpinRepo(repoName); } else { Pinned.pinRepo(repoName); }
     renderRepos();
   }
   function _closeRepo(repoName) {
     const closed = getClosedRepos();
     closed.add(repoName);
     _saveClosed(closed);
-    const pinned = getPinnedRepos();
-    if (pinned.has(repoName)) { pinned.delete(repoName); _savePinned(pinned); }
+    const Pinned = window.GHD && window.GHD.Pinned;
+    if (Pinned && Pinned.isPinned(repoName)) { Pinned.unpinRepo(repoName); }
     renderRepos();
   }
   function _restoreRepo(repoName) {
@@ -801,48 +795,57 @@
     const existing = document.getElementById('closed-repos-section');
     if (existing) existing.remove();
 
-    const pinned = getPinnedRepos();
     const closed = getClosedRepos();
     const now    = Date.now();
+
+    // Pinned set — repos shown in dedicated pinned section, excluded from card grid + kanban
+    const Pinned = window.GHD && window.GHD.Pinned;
+    const pinnedSet = Pinned ? Pinned.getPinnedRepos() : new Set();
 
     // Prune expired snooze entries on each render cycle (housekeeping)
     const Snooze = window.GHD && window.GHD.Snooze;
     if (Snooze) Snooze.pruneExpired(now);
     const snoozedSet = Snooze ? Snooze.getSnoozedRepos(now) : new Set();
 
-    // Compute backlog set — these repos are pulled out of the main card grid
+    // Compute backlog set — these repos are pulled out of the main card grid.
+    // Pinned repos have precedence over backlog and are excluded from backlogSet.
     const BacklogStrip = window.GHD && window.GHD.BacklogStrip;
     const backlogSet   = new Set();
     if (BacklogStrip && BacklogStrip.isBacklogRepo) {
       for (const r of _currentRepos) {
-        if (!closed.has(r.name) && BacklogStrip.isBacklogRepo(r, now)) {
+        if (!closed.has(r.name) && !pinnedSet.has(r.name) && BacklogStrip.isBacklogRepo(r, now)) {
           backlogSet.add(r.name);
         }
       }
     }
 
-    const pinnedRepos = _currentRepos.filter(r => pinned.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
-    const normalRepos = _currentRepos.filter(r => !pinned.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
+    // Pinned section: pinned repos not closed (snoozed pinned repos still appear here)
+    const pinnedRepos = _currentRepos.filter(r => pinnedSet.has(r.name) && !closed.has(r.name));
+    // Normal card grid: not pinned, not closed, not backlog
+    const normalRepos = _currentRepos.filter(r => !pinnedSet.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
     const closedRepos = _currentRepos.filter(r => closed.has(r.name));
 
-    [...pinnedRepos, ...normalRepos].forEach(repo => {
-      root.repoGrid.appendChild(buildRepoCard(repo, pinned.has(repo.name)));
+    normalRepos.forEach(repo => {
+      root.repoGrid.appendChild(buildRepoCard(repo, false));
     });
 
     if (closedRepos.length) {
       root.repoGrid.insertAdjacentElement('afterend', buildClosedSection(closedRepos));
     }
 
+    // Pinned section — rendered above kanban strip
+    _renderPinnedSection(pinnedRepos, pinnedSet);
+
     // S2: Record snapshots after rendering
     recordRepositorySnapshots(_currentRepos);
     renderHeaderSparkline(_currentRepos);
 
-    // Kanban strip — must run after cards are in the DOM
-    // Backlog repos AND snoozed repos are excluded so lane counts are accurate
+    // Kanban strip — must run after cards are in the DOM.
+    // Backlog, snoozed, AND pinned repos are excluded so lane counts are accurate.
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
       const kanbanRepos = _currentRepos.filter(
-        r => !closed.has(r.name) && !backlogSet.has(r.name) && !snoozedSet.has(r.name)
+        r => !closed.has(r.name) && !backlogSet.has(r.name) && !snoozedSet.has(r.name) && !pinnedSet.has(r.name)
       );
       // Snoozed repos also excluded from backlog revival scoring
       const backlogReposArr = _currentRepos.filter(
@@ -866,6 +869,41 @@
       const backlogRepos = _currentRepos.filter(r => backlogSet.has(r.name));
       BacklogStrip.renderBacklogStrip(backlogRepos, now);
     }
+  }
+
+  /**
+   * Render (or clear) the pinned-region container with full repo cards for pinned repos.
+   * Called on every renderRepos() cycle.
+   *
+   * @param {Array}      pinnedRepos - repos in the pinned set, not closed
+   * @param {Set<string>} pinnedSet  - set of pinned repo names (for isPinned check)
+   */
+  function _renderPinnedSection(pinnedRepos, pinnedSet) {
+    const region = document.getElementById('pinned-region');
+    if (!region) return;
+
+    region.innerHTML = '';
+
+    if (!pinnedRepos || pinnedRepos.length === 0) {
+      region.hidden = true;
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'pinned-section-header';
+    header.innerHTML = `
+      <span class="pinned-section-icon" aria-hidden="true">📌</span>
+      <span class="pinned-section-title">Pinned</span>
+      <span class="pinned-section-count">${pinnedRepos.length}</span>
+    `;
+
+    const grid = document.createElement('div');
+    grid.className = 'pinned-grid';
+    pinnedRepos.forEach(repo => grid.appendChild(buildRepoCard(repo, true)));
+
+    region.appendChild(header);
+    region.appendChild(grid);
+    region.hidden = false;
   }
 
   function renderHeaderSparkline(repos) {
