@@ -120,6 +120,18 @@
     if (Pinned && Pinned.isPinned(repoName)) { Pinned.unpinRepo(repoName); }
     renderRepos();
   }
+  function _archiveRepo(repoName) {
+    const Archive = window.GHD && window.GHD.Archive;
+    if (!Archive) return;
+    Archive.archiveRepo(repoName);
+    renderRepos();
+  }
+  function _unarchiveRepo(repoName) {
+    const Archive = window.GHD && window.GHD.Archive;
+    if (!Archive) return;
+    Archive.unarchiveRepo(repoName);
+    renderRepos();
+  }
   function _restoreRepo(repoName) {
     const closed = getClosedRepos();
     closed.delete(repoName);
@@ -794,9 +806,16 @@
     // Remove any existing closed section
     const existing = document.getElementById('closed-repos-section');
     if (existing) existing.remove();
+    // Remove any existing archived section
+    const existingArchived = document.getElementById('archived-repos-section');
+    if (existingArchived) existingArchived.remove();
 
     const closed = getClosedRepos();
     const now    = Date.now();
+
+    // Archive set — archived repos are hidden from ALL views (highest precedence).
+    const Archive = window.GHD && window.GHD.Archive;
+    const archivedSet = Archive ? Archive.getArchivedRepos() : new Set();
 
     // Pinned set — repos shown in dedicated pinned section, excluded from card grid + kanban
     const Pinned = window.GHD && window.GHD.Pinned;
@@ -808,22 +827,23 @@
     const snoozedSet = Snooze ? Snooze.getSnoozedRepos(now) : new Set();
 
     // Compute backlog set — these repos are pulled out of the main card grid.
-    // Pinned repos have precedence over backlog and are excluded from backlogSet.
+    // Pinned and archived repos are excluded from backlogSet.
     const BacklogStrip = window.GHD && window.GHD.BacklogStrip;
     const backlogSet   = new Set();
     if (BacklogStrip && BacklogStrip.isBacklogRepo) {
       for (const r of _currentRepos) {
-        if (!closed.has(r.name) && !pinnedSet.has(r.name) && BacklogStrip.isBacklogRepo(r, now)) {
+        if (!closed.has(r.name) && !pinnedSet.has(r.name) && !archivedSet.has(r.name) && BacklogStrip.isBacklogRepo(r, now)) {
           backlogSet.add(r.name);
         }
       }
     }
 
-    // Pinned section: pinned repos not closed (snoozed pinned repos still appear here)
-    const pinnedRepos = _currentRepos.filter(r => pinnedSet.has(r.name) && !closed.has(r.name));
-    // Normal card grid: not pinned, not closed, not backlog
-    const normalRepos = _currentRepos.filter(r => !pinnedSet.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name));
-    const closedRepos = _currentRepos.filter(r => closed.has(r.name));
+    // Archive takes precedence over all other views — filter archived out everywhere.
+    // Pinned section: pinned repos not closed and not archived
+    const pinnedRepos = _currentRepos.filter(r => pinnedSet.has(r.name) && !closed.has(r.name) && !archivedSet.has(r.name));
+    // Normal card grid: not pinned, not closed, not backlog, not archived
+    const normalRepos = _currentRepos.filter(r => !pinnedSet.has(r.name) && !closed.has(r.name) && !backlogSet.has(r.name) && !archivedSet.has(r.name));
+    const closedRepos = _currentRepos.filter(r => closed.has(r.name) && !archivedSet.has(r.name));
 
     normalRepos.forEach(repo => {
       root.repoGrid.appendChild(buildRepoCard(repo, false));
@@ -841,11 +861,11 @@
     renderHeaderSparkline(_currentRepos);
 
     // Kanban strip — must run after cards are in the DOM.
-    // Backlog, snoozed, AND pinned repos are excluded so lane counts are accurate.
+    // Archived, backlog, snoozed, AND pinned repos are excluded so lane counts are accurate.
     const KanbanStrip = window.GHD && window.GHD.KanbanStrip;
     if (KanbanStrip && KanbanStrip.renderKanbanStrip) {
       const kanbanRepos = _currentRepos.filter(
-        r => !closed.has(r.name) && !backlogSet.has(r.name) && !snoozedSet.has(r.name) && !pinnedSet.has(r.name)
+        r => !closed.has(r.name) && !backlogSet.has(r.name) && !snoozedSet.has(r.name) && !pinnedSet.has(r.name) && !archivedSet.has(r.name)
       );
       // Snoozed repos also excluded from backlog revival scoring
       const backlogReposArr = _currentRepos.filter(
@@ -869,6 +889,9 @@
       const backlogRepos = _currentRepos.filter(r => backlogSet.has(r.name));
       BacklogStrip.renderBacklogStrip(backlogRepos, now);
     }
+
+    // Archived section — collapsed list at page bottom, visible when repos are archived
+    _renderArchivedSection(_currentRepos.filter(r => archivedSet.has(r.name)));
   }
 
   /**
@@ -904,6 +927,86 @@
     region.appendChild(header);
     region.appendChild(grid);
     region.hidden = false;
+  }
+
+  /**
+   * Render a collapsed "Archived" section at the page bottom.
+   * Shows when repos are archived; hidden when list is empty.
+   *
+   * @param {Array} archivedRepos - repos whose names are in archivedSet
+   */
+  function _renderArchivedSection(archivedRepos) {
+    const Archive = window.GHD && window.GHD.Archive;
+    // Find or create container
+    let section = document.getElementById('archived-repos-section');
+    if (!section) {
+      section = document.createElement('section');
+      section.id = 'archived-repos-section';
+      section.className = 'archived-repos-section';
+      document.body.appendChild(section);
+    }
+    section.innerHTML = '';
+
+    if (!archivedRepos || archivedRepos.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    const entries = Archive ? Archive.list() : [];
+    const archivedAtMap = new Map(entries.map(e => [e.repo, e.archivedAt]));
+
+    const summary = document.createElement('button');
+    summary.className = 'archived-section-toggle';
+    summary.type = 'button';
+    summary.setAttribute('aria-expanded', 'false');
+    summary.setAttribute('aria-controls', 'archived-repos-list');
+    summary.innerHTML = `
+      <span class="archived-section-icon" aria-hidden="true">🗄️</span>
+      <span class="archived-section-title">Archived</span>
+      <span class="archived-section-count">${archivedRepos.length}</span>
+      <span class="archived-section-chevron" aria-hidden="true">▾</span>
+    `;
+
+    const list = document.createElement('div');
+    list.id = 'archived-repos-list';
+    list.className = 'archived-repos-list';
+    list.hidden = true;
+
+    archivedRepos.forEach(repo => {
+      const item = document.createElement('div');
+      item.className = 'archived-repo-item';
+
+      const nameLink = document.createElement('a');
+      nameLink.className = 'archived-repo-name';
+      nameLink.href = repo.html_url || '#';
+      nameLink.target = '_blank';
+      nameLink.rel = 'noreferrer';
+      nameLink.textContent = repo.name;
+
+      const archivedAt = archivedAtMap.get(repo.name);
+      const dateBadge = document.createElement('span');
+      dateBadge.className = 'archived-repo-date';
+      dateBadge.textContent = archivedAt ? `Archived ${formatRelativeDate(new Date(archivedAt).toISOString())}` : 'Archived';
+
+      const unarchiveBtn = document.createElement('button');
+      unarchiveBtn.className = 'unarchive-btn';
+      unarchiveBtn.type = 'button';
+      unarchiveBtn.title = 'Unarchive — restore to dashboard';
+      unarchiveBtn.textContent = 'Unarchive';
+      unarchiveBtn.addEventListener('click', () => _unarchiveRepo(repo.name));
+
+      item.append(nameLink, dateBadge, unarchiveBtn);
+      list.appendChild(item);
+    });
+
+    summary.addEventListener('click', () => {
+      const expanded = summary.getAttribute('aria-expanded') === 'true';
+      summary.setAttribute('aria-expanded', String(!expanded));
+      list.hidden = expanded;
+    });
+
+    section.append(summary, list);
+    section.hidden = false;
   }
 
   function renderHeaderSparkline(repos) {
@@ -1082,6 +1185,19 @@
         });
       }
       buttons.push(snoozeBtn);
+    }
+
+    // Archive button — hides repo from all views; reversible via archived section
+    const Archive = window.GHD && window.GHD.Archive;
+    if (Archive) {
+      const archiveBtn = document.createElement('button');
+      archiveBtn.type = 'button';
+      archiveBtn.className = 'card-btn archive-btn';
+      archiveBtn.title = 'Archive — hide from dashboard';
+      archiveBtn.setAttribute('aria-label', 'Archive repository — hide from all dashboard views');
+      archiveBtn.textContent = '🗄️';
+      archiveBtn.addEventListener('click', (e) => { e.preventDefault(); _archiveRepo(repo.name); });
+      buttons.push(archiveBtn);
     }
 
     if (GHD.Auth.hasIssueWriteAccess()) {
