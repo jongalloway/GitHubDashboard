@@ -87,3 +87,12 @@ All decisions (D001-D005) merged into `.squad/decisions.md`. Orchestration logs 
 - Decomposed Phase 2 into 3 sub-issues (#55, #56, #57). Key split rationale: scoring algorithm + revival UI are inseparable (ship together), but chips/drill-down and snooze are independently shippable.
 - Snooze logic is testable without chips UI (pure localStorage expiry math), but the snooze *affordance* (button) lives on chips — soft dependency, not blocking.
 - Added `squad:keyser` label to #57 (scoring algorithm) for architecture review of the heuristic before implementation. Pattern: label yourself on issues requiring design sign-off, not just implementation.
+
+## Learnings (2026-06-28 — Issue #42 Phase 3 Decomposition)
+
+- Decomposed Phase 3 into 3 sub-issues (#62, #63, #64). Critical split: separated read-only localStorage features (pin, archive) from the write-scope Dependabot merge feature.
+- **Security ruling:** Original Phase 3 spec called for "one-click Dependabot merge (write scope)" — ruled this incompatible with the static GitHub Pages architecture. A static site cannot safely store or broker write-scope PATs. Chose deep-links to GitHub's merge UI (continuing the D025 pattern) as zero-risk alternative.
+- **Pattern:** When a feature request implies write scope on a read-only static site, always decompose into (a) the read-only version that ships now and (b) a future opt-in write-scope issue with explicit security documentation. Never silently downgrade — flag the constraint and document the reasoning.
+- Pin (#62) and archive (#63) are distinct UX features (sticky-to-top vs hide-entirely) despite both using localStorage. Splitting keeps acceptance criteria clean and allows parallel implementation.
+- Added `squad:keyser` label to #64 (Dependabot deep-links) for architecture review of the security constraint and deep-link approach. Consistent with Phase 2 pattern of self-labeling on design-sensitive issues.
+- Decision drop: `.squad/decisions/inbox/keyser-phase3-breakdown.md` (D041).
