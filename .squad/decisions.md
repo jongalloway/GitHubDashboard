@@ -406,3 +406,48 @@ When no Blocked or Needs-Attention repos exist, the Top Pick bar now suggests th
 - `test/backlog-scoring.test.js` — 34 new tests
 
 **Test Results:** 34 new tests passing. Coverage: null/empty fallbacks, zero-signal baseline, recency ordering, issue cap, release cap, copilot signal, squad fallback, boundary (30d-with-issues > 100d-dormant), tiebreaker determinism, URL safety.
+
+### D041: Phase 3 Scope — #42 Decomposition + Pinning Rules (Keyser, 2026-06-28)
+**Issues:** #42 (root), #62 (pin deep-links), #63 (archive feature), #64 (Dependabot merge deep-links) | **Status:** RATIFIED
+
+Keyser scoped Phase 3 work into three independently shippable sub-issues at Jon's direction:
+
+#### D041.1: Pinning Persistence + Merge-Incompatibility Ruling
+**Issue:** #62 | **Rationale:** Phase 1.5 pinning UX exists but storage is hardcoded to localStorage only.
+
+**Phase 3 goal:** Upgrade pin persistence to GitHub Gist-backed sync (cross-device). Gist model:
+- Private gist: `ghd-pinned-repos` (user-controlled, versioned, authenticated)
+- Format: JSON `{ "repos": { "owner/name": true, ... } }` with timestamp
+- On app load: Fetch gist → merge with localStorage (localStorage wins if newer)
+- On pin/unpin: Push updated JSON to gist + localStorage atomically
+
+**Ruling:** **Do NOT implement write-back to GitHub REST API** (e.g., `PUT /repos/{owner}/{repo}/subscription`). Reason: static Pages cannot maintain authentication across page refreshes without server-side session store. Gist-backed approach is simpler, user-owned, and requires no repo permissions beyond what users have already granted.
+
+#### D041.2: Archive Feature — Lightweight Dismissal
+**Issue:** #63 | **Rationale:** Users want to hide repos they know are dormant or irrelevant (e.g., forks, archive repos, completed projects).
+
+**Phase 3 goal:** Add "Archive" action to card context menu (already exists for pin/snooze). Updates localStorage `ghd_archived` = Set of repo names. Card is hidden from all lanes/grid immediately; restored via Gist sync or manual localStorage clear.
+
+**Design:** Lightweight; no special "Archived" lane. Just hidden. Archive UX similar to snooze (revokable, stored in Gist Phase 3.5+).
+
+#### D041.3: Dependabot Merge Deep-Links (Continuation of D025)
+**Issue:** #64 | **Rationale:** D025 (Phase 1) ruled Top Pick as read-only deep-link for safety. Phase 3 now implements one-click merge capability.
+
+**Phase 3 goal:** Add "Merge all Dependabot PRs" button to Top Pick bar (when Dependabot PRs detected). Requires `pull_requests: write` scope check at load time:
+- If scope present: Show merge button inline with link
+- If scope absent: Show read-only link only (graceful degrade)
+
+**Implementation:** Batch merge via GitHub GraphQL `createPullRequestReview(pullRequestId, event: APPROVE)` + `mergePullRequest(pullRequestId)` → ~300ms for 10 PRs with concurrency limiter. Confirmation modal ("Merge X PRs?").
+
+**Trade-off:** Users must grant `pull_requests: write` scope explicitly (PAT upgrade). One-click merge is Phase 3+ feature, not forced on all users.
+
+#### D041.4: Rationale for Three-Issue Split
+| Issue | Owner Focus | Why Independent |
+|---|---|---|
+| #62 | Gist sync pattern | Core persistence upgrade; snooze + archive + pin all use same infrastructure |
+| #63 | Archive UX | Lightweight feature reusing snooze code pattern; no Gist dependency |
+| #64 | Write-scope actions | Depends on D025 precedent + scope check; independent of gist/archive |
+
+**All three are client-side** (Gist API is read-auth, GraphQL needs `write` scope pre-flight check). No backend changes. Rollout order: Gist sync (#62) → Archive (#63) + Merge (#64) in parallel.
+
+---
