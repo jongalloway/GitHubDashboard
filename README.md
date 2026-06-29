@@ -31,6 +31,16 @@ The dashboard only performs read operations, but note that the classic `repo` sc
 
 If unsure, start with `repo` + `security_events` — your token stays secure in your browser.
 
+### Write-Scope Merge: Not Supported
+
+The dashboard is intentionally **read-only** and does not support one-click "Merge all Dependabot PRs" or any other write operation. Here's why:
+
+- **Static hosting**: GitHub Pages serves this as a plain static app with no server-side component — there is no safe place to hold or proxy write-scoped credentials.
+- **No write scope guaranteed**: The PAT you enter is stored in your browser's `localStorage`. Adding write actions would require the `pull_requests: write` scope, which is not needed for any read feature and represents unnecessary risk for a personal dashboard.
+- **Phased design (D025 / P003)**: The architecture explicitly deferred write actions until a user opts into an explicit `pull_requests: write` PAT upgrade. The Dependabot Top Pick bar links directly to the specific PR on GitHub so you can review and merge there in one click — this is the intentional UX boundary.
+
+If you need automated Dependabot merges, use [GitHub's built-in auto-merge feature](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions) instead.
+
 ### Local Development
 
 ```bash
